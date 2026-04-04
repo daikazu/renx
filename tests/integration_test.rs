@@ -103,3 +103,26 @@ fn conflict_detection_blocks_execution() {
     // Both become "x.txt" — should detect conflict
     assert!(app.has_errors());
 }
+
+#[test]
+fn conflict_detected_when_target_exists_on_disk() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("a.txt"), "a_content").unwrap();
+    fs::write(dir.path().join("b.txt"), "b_content").unwrap();
+
+    let file_list = files::discover_dir(dir.path()).unwrap();
+    let mut app = App::new(file_list);
+
+    // Select only a.txt, rename it to b.txt (which exists on disk but isn't selected)
+    let a_idx = app.files.iter().position(|f| f.file_name == "a.txt").unwrap();
+    app.selected[a_idx] = true;
+
+    app.operations.push(Operation::FindReplace(FindReplace {
+        search: "a".to_string(),
+        replacement: "b".to_string(),
+    }));
+    app.update_preview();
+
+    // Should detect conflict: b.txt already exists on disk
+    assert!(app.has_errors());
+}

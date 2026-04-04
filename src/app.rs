@@ -276,6 +276,20 @@ impl App {
                     conflicts.push(i);
                 }
             }
+            // Check if new name collides with an existing file on disk that isn't being renamed
+            let entry = &self.files[*idx_a];
+            let target_path = entry.parent_dir.join(new_a);
+            if target_path.exists() && target_path != entry.full_path() {
+                // Check it's not another file being renamed away in this preview set
+                let is_in_preview = self.preview.iter().any(|(idx, _)| {
+                    self.files[*idx].full_path() == target_path
+                });
+                if !is_in_preview {
+                    if !conflicts.contains(&i) {
+                        conflicts.push(i);
+                    }
+                }
+            }
         }
         conflicts
     }

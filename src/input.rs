@@ -576,6 +576,11 @@ fn execute_renames(app: &mut App) {
         if entry.file_name == *new_name {
             continue;
         }
+        let target_path = entry.parent_dir.join(new_name);
+        if target_path.exists() && target_path != entry.full_path() {
+            failures.push(format!("{}: target '{}' already exists", entry.file_name, new_name));
+            continue;
+        }
         match crate::files::rename_file(entry, new_name) {
             Ok(_) => success += 1,
             Err(e) => failures.push(format!("{}: {}", entry.file_name, e)),
