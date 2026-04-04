@@ -578,19 +578,56 @@ fn execute_renames(app: &mut App) {
     let mut success = 0;
     let mut failures: Vec<String> = Vec::new();
 
-    for (file_idx, new_name) in &app.preview {
+    // Collect renames that actually change the name
+    let renames: Vec<(usize, String)> = app
+        .preview
+        .iter()
+        .filter(|(file_idx, new_name)| app.files[*file_idx].file_name != *new_name)
+        .cloned()
+        .collect();
+
+    if renames.is_empty() {
+        app.status_message = "No files need renaming".to_string();
+        return;
+    }
+
+    // Phase 1: Move all sources to temp names
+    let mut temp_mappings: Vec<(usize, String, String)> = Vec::new(); // (file_idx, temp_name, final_name)
+    for (file_idx, new_name) in &renames {
         let entry = &app.files[*file_idx];
-        if entry.file_name == *new_name {
+        let temp_name = format!(".renx_tmp_{}", entry.file_name);
+        match crate::files::rename_file(entry, &temp_name) {
+            Ok(_) => {
+                temp_mappings.push((*file_idx, temp_name, new_name.clone()));
+            }
+            Err(e) => {
+                failures.push(format!("{}: {}", entry.file_name, e));
+            }
+        }
+    }
+
+    // Phase 2: Move temp names to final names
+    for (file_idx, temp_name, final_name) in &temp_mappings {
+        let entry = &app.files[*file_idx];
+        let temp_entry = crate::files::FileEntry {
+            file_name: temp_name.clone(),
+            parent_dir: entry.parent_dir.clone(),
+        };
+        // Guard: don't overwrite existing non-temp file
+        let target_path = entry.parent_dir.join(final_name);
+        if target_path.exists() {
+            // Rollback: move temp back to original
+            let _ = crate::files::rename_file(&temp_entry, &entry.file_name);
+            failures.push(format!("{}: target '{}' already exists", entry.file_name, final_name));
             continue;
         }
-        let target_path = entry.parent_dir.join(new_name);
-        if target_path.exists() && target_path != entry.full_path() {
-            failures.push(format!("{}: target '{}' already exists", entry.file_name, new_name));
-            continue;
-        }
-        match crate::files::rename_file(entry, new_name) {
+        match crate::files::rename_file(&temp_entry, final_name) {
             Ok(_) => success += 1,
-            Err(e) => failures.push(format!("{}: {}", entry.file_name, e)),
+            Err(e) => {
+                // Try to rollback
+                let _ = crate::files::rename_file(&temp_entry, &entry.file_name);
+                failures.push(format!("{}: {}", entry.file_name, e));
+            }
         }
     }
 
@@ -601,7 +638,7 @@ fn execute_renames(app: &mut App) {
             "Renamed {} files, {} failed: {}",
             success,
             failures.len(),
-            failures.first().unwrap_or(&String::new())
+            failures.join(", ")
         );
     }
     app.executed = true;

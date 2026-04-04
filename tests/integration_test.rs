@@ -128,6 +128,74 @@ fn conflict_detected_when_target_exists_on_disk() {
 }
 
 #[test]
+fn two_phase_rename_handles_swap() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("alpha.txt"), "content_alpha").unwrap();
+    fs::write(dir.path().join("beta.txt"), "content_beta").unwrap();
+
+    let mut file_list = files::discover_dir(dir.path()).unwrap();
+    file_list.sort_by(|a, b| a.file_name.cmp(&b.file_name));
+    let mut app = App::new(file_list);
+    app.toggle_select_all();
+
+    // Swap alpha<->beta via operations
+    app.operations.push(Operation::RegexReplace(RegexReplace {
+        pattern: "^alpha".to_string(),
+        replacement: "SWAP".to_string(),
+    }));
+    app.operations.push(Operation::RegexReplace(RegexReplace {
+        pattern: "^beta".to_string(),
+        replacement: "alpha".to_string(),
+    }));
+    app.operations.push(Operation::RegexReplace(RegexReplace {
+        pattern: "^SWAP".to_string(),
+        replacement: "beta".to_string(),
+    }));
+    app.update_preview();
+
+    assert!(!app.has_errors());
+
+    // Simulate two-phase rename manually (same algorithm as execute_renames)
+    let renames: Vec<(usize, String)> = app
+        .preview
+        .iter()
+        .filter(|(idx, new)| app.files[*idx].file_name != *new)
+        .cloned()
+        .collect();
+
+    // Phase 1: temp names
+    let mut temps: Vec<(files::FileEntry, String, String)> = Vec::new();
+    for (file_idx, new_name) in &renames {
+        let entry = &app.files[*file_idx];
+        let temp_name = format!(".renx_tmp_{}", entry.file_name);
+        files::rename_file(entry, &temp_name).unwrap();
+        temps.push((
+            files::FileEntry {
+                file_name: temp_name,
+                parent_dir: entry.parent_dir.clone(),
+            },
+            new_name.clone(),
+            entry.file_name.clone(),
+        ));
+    }
+
+    // Phase 2: final names
+    for (temp_entry, final_name, _) in &temps {
+        files::rename_file(temp_entry, final_name).unwrap();
+    }
+
+    // Verify swap happened correctly
+    assert_eq!(
+        fs::read_to_string(dir.path().join("alpha.txt")).unwrap(),
+        "content_beta"
+    );
+    assert_eq!(
+        fs::read_to_string(dir.path().join("beta.txt")).unwrap(),
+        "content_alpha"
+    );
+}
+
+#[test]
 fn filter_handles_unicode_filenames() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(dir.path().join("café_photo.jpg"), "").unwrap();
