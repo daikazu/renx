@@ -36,10 +36,7 @@ fn stacked_operations() {
         }),
     ];
     let pipeline = Pipeline::new(ops);
-    let filenames = vec![
-        "IMG_0422.JPG".to_string(),
-        "IMG_0423.JPG".to_string(),
-    ];
+    let filenames = vec!["IMG_0422.JPG".to_string(), "IMG_0423.JPG".to_string()];
     let results = pipeline.apply(&filenames);
     assert_eq!(results, vec!["001_beach_0422.jpg", "002_beach_0423.jpg"]);
 }

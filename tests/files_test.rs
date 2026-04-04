@@ -1,5 +1,5 @@
-use std::fs;
 use renx::files;
+use std::fs;
 
 #[test]
 fn discover_files_in_directory() {
@@ -42,5 +42,8 @@ fn rename_file_on_disk() {
     assert!(result.is_ok());
     assert!(!original.exists());
     assert!(dir.path().join("new.txt").exists());
-    assert_eq!(fs::read_to_string(dir.path().join("new.txt")).unwrap(), "content");
+    assert_eq!(
+        fs::read_to_string(dir.path().join("new.txt")).unwrap(),
+        "content"
+    );
 }

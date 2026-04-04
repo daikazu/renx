@@ -332,7 +332,11 @@ fn handle_param_editor(app: &mut App, key: KeyEvent) {
         }
         KeyCode::Right if !is_selector => {
             if let Some(pos) = app.popup_text_cursors.get_mut(cursor) {
-                let len = app.popup_fields.get(cursor).map(|f| crate::app::char_len(f)).unwrap_or(0);
+                let len = app
+                    .popup_fields
+                    .get(cursor)
+                    .map(|f| crate::app::char_len(f))
+                    .unwrap_or(0);
                 if *pos < len {
                     *pos += 1;
                 }
@@ -345,7 +349,11 @@ fn handle_param_editor(app: &mut App, key: KeyEvent) {
         }
         KeyCode::End if !is_selector => {
             if let Some(pos) = app.popup_text_cursors.get_mut(cursor) {
-                *pos = app.popup_fields.get(cursor).map(|f| crate::app::char_len(f)).unwrap_or(0);
+                *pos = app
+                    .popup_fields
+                    .get(cursor)
+                    .map(|f| crate::app::char_len(f))
+                    .unwrap_or(0);
             }
         }
         // Text fields: editing
@@ -399,15 +407,15 @@ fn build_operation_from_fields(app: &App) -> Option<Operation> {
     let fields = &app.popup_fields;
     match app.popup_type_cursor {
         0 => Some(Operation::FindReplace(FindReplace {
-            search: fields.get(0)?.clone(),
+            search: fields.first()?.clone(),
             replacement: fields.get(1)?.clone(),
         })),
         1 => Some(Operation::RegexReplace(RegexReplace {
-            pattern: fields.get(0)?.clone(),
+            pattern: fields.first()?.clone(),
             replacement: fields.get(1)?.clone(),
         })),
         2 => {
-            let width: u32 = fields.get(0)?.parse().unwrap_or(3);
+            let width: u32 = fields.first()?.parse().unwrap_or(3);
             let start: u32 = fields.get(1)?.parse().unwrap_or(1);
             let position = match fields.get(2)?.as_str() {
                 "suffix" => NumberPosition::Suffix,
@@ -421,7 +429,7 @@ fn build_operation_from_fields(app: &App) -> Option<Operation> {
             }))
         }
         3 => {
-            let mode = match fields.get(0)?.as_str() {
+            let mode = match fields.first()?.as_str() {
                 "upper" => CaseMode::Upper,
                 "title" => CaseMode::Title,
                 _ => CaseMode::Lower,
@@ -429,16 +437,16 @@ fn build_operation_from_fields(app: &App) -> Option<Operation> {
             Some(Operation::CaseChange(CaseChange { mode }))
         }
         4 => Some(Operation::AddPrefix(AddPrefix {
-            prefix: fields.get(0)?.clone(),
+            prefix: fields.first()?.clone(),
         })),
         5 => Some(Operation::AddSuffix(AddSuffix {
-            suffix: fields.get(0)?.clone(),
+            suffix: fields.first()?.clone(),
         })),
         6 => Some(Operation::RemovePattern(RemovePattern {
-            pattern: fields.get(0)?.clone(),
+            pattern: fields.first()?.clone(),
         })),
         7 => {
-            let sep = fields.get(0)?.clone();
+            let sep = fields.first()?.clone();
             Some(Operation::Slugify(Slugify {
                 separator: if sep.is_empty() { "-".to_string() } else { sep },
             }))
@@ -451,17 +459,20 @@ fn build_operation_from_fields(app: &App) -> Option<Operation> {
 /// for the current popup_type_cursor. Used when adding a new operation.
 fn setup_fields_for_type(app: &mut App) {
     match app.popup_type_cursor {
-        0 => { // Find & Replace
+        0 => {
+            // Find & Replace
             app.popup_fields = vec![String::new(); 2];
             app.popup_field_options = vec![None, None];
             app.popup_field_selections = vec![0, 0];
         }
-        1 => { // Regex Replace
+        1 => {
+            // Regex Replace
             app.popup_fields = vec![String::new(); 2];
             app.popup_field_options = vec![None, None];
             app.popup_field_selections = vec![0, 0];
         }
-        2 => { // Sequential Number
+        2 => {
+            // Sequential Number
             app.popup_fields = vec![String::new(), String::new(), String::new()];
             app.popup_field_options = vec![
                 None,
@@ -470,33 +481,35 @@ fn setup_fields_for_type(app: &mut App) {
             ];
             app.popup_field_selections = vec![0, 0, 0];
         }
-        3 => { // Case Change
+        3 => {
+            // Case Change
             app.popup_fields = vec![String::new()];
-            app.popup_field_options = vec![
-                Some(vec!["lower".into(), "upper".into(), "title".into()]),
-            ];
+            app.popup_field_options =
+                vec![Some(vec!["lower".into(), "upper".into(), "title".into()])];
             app.popup_field_selections = vec![0];
         }
-        4 => { // Add Prefix
+        4 => {
+            // Add Prefix
             app.popup_fields = vec![String::new()];
             app.popup_field_options = vec![None];
             app.popup_field_selections = vec![0];
         }
-        5 => { // Add Suffix
+        5 => {
+            // Add Suffix
             app.popup_fields = vec![String::new()];
             app.popup_field_options = vec![None];
             app.popup_field_selections = vec![0];
         }
-        6 => { // Remove Pattern
+        6 => {
+            // Remove Pattern
             app.popup_fields = vec![String::new()];
             app.popup_field_options = vec![None];
             app.popup_field_selections = vec![0];
         }
-        7 => { // Slugify
+        7 => {
+            // Slugify
             app.popup_fields = vec![String::new()];
-            app.popup_field_options = vec![
-                Some(vec!["-".into(), "_".into(), ".".into()]),
-            ];
+            app.popup_field_options = vec![Some(vec!["-".into(), "_".into(), ".".into()])];
             app.popup_field_selections = vec![0];
         }
         _ => {
@@ -568,7 +581,11 @@ fn start_editing_operation(app: &mut App) {
     }
 
     // Set text cursors to end of each pre-filled value
-    app.popup_text_cursors = app.popup_fields.iter().map(|f| crate::app::char_len(f)).collect();
+    app.popup_text_cursors = app
+        .popup_fields
+        .iter()
+        .map(|f| crate::app::char_len(f))
+        .collect();
     app.popup_field_cursor = 0;
     app.editing_op_index = Some(app.op_cursor);
     app.input_mode = InputMode::EditingOperationParams;
@@ -618,7 +635,10 @@ fn execute_renames(app: &mut App) {
         if target_path.exists() {
             // Rollback: move temp back to original
             let _ = crate::files::rename_file(&temp_entry, &entry.file_name);
-            failures.push(format!("{}: target '{}' already exists", entry.file_name, final_name));
+            failures.push(format!(
+                "{}: target '{}' already exists",
+                entry.file_name, final_name
+            ));
             continue;
         }
         match crate::files::rename_file(&temp_entry, final_name) {

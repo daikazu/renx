@@ -1,4 +1,4 @@
-use renx::app::{char_to_byte_index, char_len};
+use renx::app::{char_len, char_to_byte_index};
 
 #[test]
 fn char_to_byte_index_ascii() {
@@ -56,6 +56,5 @@ fn popup_multibyte_insert_and_delete() {
     cursor = 1;
     let byte_pos = char_to_byte_index(&field, cursor);
     field.insert(byte_pos, 'ü');
-    cursor += 1;
     assert_eq!(field, "cüaf");
 }

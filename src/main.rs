@@ -79,9 +79,7 @@ fn resolve_args(args: &Args) -> (String, Option<String>) {
 
         // Quoted glob pattern (wildcards survived the shell)
         if expanded.contains('*') || expanded.contains('?') {
-            let first_wild = expanded
-                .find(|c: char| c == '*' || c == '?')
-                .unwrap_or(expanded.len());
+            let first_wild = expanded.find(['*', '?']).unwrap_or(expanded.len());
             let dir_end = expanded[..first_wild].rfind('/');
 
             return match dir_end {
@@ -89,7 +87,11 @@ fn resolve_args(args: &Args) -> (String, Option<String>) {
                     let dir = &expanded[..pos];
                     let filter = &expanded[pos + 1..];
                     (
-                        if dir.is_empty() { ".".to_string() } else { dir.to_string() },
+                        if dir.is_empty() {
+                            ".".to_string()
+                        } else {
+                            dir.to_string()
+                        },
                         Some(filter.to_string()),
                     )
                 }
@@ -115,7 +117,11 @@ fn resolve_args(args: &Args) -> (String, Option<String>) {
     // If all filenames contain a common substring, use *substring*
     let filenames: Vec<String> = expanded
         .iter()
-        .filter_map(|p| Path::new(p).file_name().map(|f| f.to_string_lossy().to_string()))
+        .filter_map(|p| {
+            Path::new(p)
+                .file_name()
+                .map(|f| f.to_string_lossy().to_string())
+        })
         .collect();
 
     let filter = infer_filter(&filenames);
@@ -183,7 +189,7 @@ fn load_files(dir: &str, recursive: bool) -> io::Result<Vec<files::FileEntry>> {
         files::discover_dir(path)?
     };
 
-    all_files.sort_by(|a, b| a.full_path().cmp(&b.full_path()));
+    all_files.sort_by_key(|a| a.full_path());
     all_files.dedup_by(|a, b| a.full_path() == b.full_path());
 
     Ok(all_files)

@@ -168,7 +168,7 @@ impl App {
         self.preview = selected
             .iter()
             .map(|(idx, _)| *idx)
-            .zip(new_names.into_iter())
+            .zip(new_names)
             .collect();
         // Clamp preview_scroll when preview shrinks
         if self.preview.is_empty() {
@@ -210,10 +210,7 @@ impl App {
 
     /// Select all or deselect all visible (filtered) files.
     pub fn toggle_select_all(&mut self) {
-        let all_selected = self
-            .filtered_indices
-            .iter()
-            .all(|&i| self.selected[i]);
+        let all_selected = self.filtered_indices.iter().all(|&i| self.selected[i]);
         let new_value = !all_selected;
         for &i in &self.filtered_indices {
             self.selected[i] = new_value;
@@ -271,23 +268,22 @@ impl App {
                 }
                 continue;
             }
-            if new_a.contains('/') || new_a.contains('\0') || new_a.contains('\\') {
-                if !conflicts.contains(&i) {
-                    conflicts.push(i);
-                }
+            if (new_a.contains('/') || new_a.contains('\0') || new_a.contains('\\'))
+                && !conflicts.contains(&i)
+            {
+                conflicts.push(i);
             }
             // Check if new name collides with an existing file on disk that isn't being renamed
             let entry = &self.files[*idx_a];
             let target_path = entry.parent_dir.join(new_a);
             if target_path.exists() && target_path != entry.full_path() {
                 // Check it's not another file being renamed away in this preview set
-                let is_in_preview = self.preview.iter().any(|(idx, _)| {
-                    self.files[*idx].full_path() == target_path
-                });
-                if !is_in_preview {
-                    if !conflicts.contains(&i) {
-                        conflicts.push(i);
-                    }
+                let is_in_preview = self
+                    .preview
+                    .iter()
+                    .any(|(idx, _)| self.files[*idx].full_path() == target_path);
+                if !is_in_preview && !conflicts.contains(&i) {
+                    conflicts.push(i);
                 }
             }
         }

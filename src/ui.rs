@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Clear},
+    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
     Frame,
 };
 
@@ -35,10 +35,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 
     let [files_area, ops_area] = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(55),
-            Constraint::Percentage(45),
-        ])
+        .constraints([Constraint::Percentage(55), Constraint::Percentage(45)])
         .areas(main_area);
 
     render_top_bar(frame, app, top_bar);
@@ -64,15 +61,22 @@ fn render_top_bar(frame: &mut Frame, app: &App, area: Rect) {
         .unwrap_or_else(|| ".".to_string());
 
     let showing = if app.filtered_indices.len() != app.files.len() {
-        format!("  showing {}/{}", app.filtered_indices.len(), app.files.len())
+        format!(
+            "  showing {}/{}",
+            app.filtered_indices.len(),
+            app.files.len()
+        )
     } else {
         format!("  {} files", app.files.len())
     };
 
     let text = Line::from(vec![
-        Span::styled(" renx ", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            " renx ",
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        ),
         Span::styled("\u{2502} ", Style::default().fg(BORDER_INACTIVE)),
-        Span::styled(format!("{}", dir), Style::default().fg(TEXT)),
+        Span::styled(dir.to_string(), Style::default().fg(TEXT)),
         Span::styled(showing, Style::default().fg(TEXT_DIM)),
         Span::styled(
             format!("  \u{2714} {}", app.selected_count()),
@@ -103,11 +107,18 @@ fn render_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
     if let Some(filter_rect) = filter_area {
         let cursor = if is_filtering { "\u{258e}" } else { "" };
         let line = Line::from(vec![
-            Span::styled(" / ", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                " / ",
+                Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(&app.filter_text, Style::default().fg(TEXT)),
             Span::styled(cursor, Style::default().fg(ACCENT)),
             Span::styled(
-                if is_filtering { "  Esc: clear  Enter: confirm" } else { "  / to edit  Esc: clear" },
+                if is_filtering {
+                    "  Esc: clear  Enter: confirm"
+                } else {
+                    "  / to edit  Esc: clear"
+                },
                 Style::default().fg(TEXT_DIM),
             ),
         ]);
@@ -117,7 +128,10 @@ fn render_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
 
     // File list (uses filtered indices)
     let (border_color, title_style) = if focused || is_filtering {
-        (ACCENT, Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))
+        (
+            ACCENT,
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        )
     } else {
         (BORDER_INACTIVE, Style::default().fg(TEXT_DIM))
     };
@@ -160,7 +174,14 @@ fn render_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
 
             ListItem::new(Line::from(vec![
                 Span::styled(cursor_marker, style),
-                Span::styled(check, Style::default().fg(check_style).bg(if is_cursor { BG_HIGHLIGHT } else { Color::Reset })),
+                Span::styled(
+                    check,
+                    Style::default().fg(check_style).bg(if is_cursor {
+                        BG_HIGHLIGHT
+                    } else {
+                        Color::Reset
+                    }),
+                ),
                 Span::styled(&file.file_name, style),
             ]))
         })
@@ -173,7 +194,10 @@ fn render_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
 fn render_operation_stack(frame: &mut Frame, app: &App, area: Rect) {
     let focused = app.focused_panel == Panel::Operations;
     let (border_color, title_style) = if focused {
-        (ACCENT, Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))
+        (
+            ACCENT,
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        )
     } else {
         (BORDER_INACTIVE, Style::default().fg(TEXT_DIM))
     };
@@ -188,7 +212,10 @@ fn render_operation_stack(frame: &mut Frame, app: &App, area: Rect) {
     if app.operations.is_empty() {
         let hint = Paragraph::new(Line::from(vec![
             Span::styled("  Press ", Style::default().fg(TEXT_DIM)),
-            Span::styled("a", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "a",
+                Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" to add an operation", Style::default().fg(TEXT_DIM)),
         ]))
         .block(block);
@@ -203,7 +230,10 @@ fn render_operation_stack(frame: &mut Frame, app: &App, area: Rect) {
         .map(|(i, op)| {
             let is_cursor = i == app.op_cursor && focused;
             let num_style = if is_cursor {
-                Style::default().fg(ACCENT).bg(BG_HIGHLIGHT).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(ACCENT)
+                    .bg(BG_HIGHLIGHT)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(ACCENT_DIM)
             };
@@ -226,7 +256,10 @@ fn render_operation_stack(frame: &mut Frame, app: &App, area: Rect) {
 fn render_preview(frame: &mut Frame, app: &mut App, area: Rect) {
     let focused = app.focused_panel == Panel::Preview;
     let (border_color, title_style) = if focused {
-        (ACCENT, Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))
+        (
+            ACCENT,
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        )
     } else {
         (BORDER_INACTIVE, Style::default().fg(TEXT_DIM))
     };
@@ -250,9 +283,10 @@ fn render_preview(frame: &mut Frame, app: &mut App, area: Rect) {
         } else {
             "No files selected"
         };
-        let hint = Paragraph::new(Line::from(vec![
-            Span::styled(format!("  {}", msg), Style::default().fg(TEXT_DIM)),
-        ]));
+        let hint = Paragraph::new(Line::from(vec![Span::styled(
+            format!("  {}", msg),
+            Style::default().fg(TEXT_DIM),
+        )]));
         frame.render_widget(hint, inner);
         return;
     }
@@ -327,9 +361,10 @@ fn render_preview(frame: &mut Frame, app: &mut App, area: Rect) {
 fn render_bottom_bar(frame: &mut Frame, app: &App, area: Rect) {
     // Show status message if present
     if !app.status_message.is_empty() {
-        let line = Line::from(vec![
-            Span::styled(format!(" {}", app.status_message), Style::default().fg(YELLOW)),
-        ]);
+        let line = Line::from(vec![Span::styled(
+            format!(" {}", app.status_message),
+            Style::default().fg(YELLOW),
+        )]);
         let bar = Paragraph::new(line).style(Style::default().bg(BG_BAR));
         frame.render_widget(bar, area);
         return;
@@ -340,10 +375,16 @@ fn render_bottom_bar(frame: &mut Frame, app: &App, area: Rect) {
         let line = Line::from(vec![
             Span::styled(" Type to filter", Style::default().fg(TEXT_DIM)),
             Span::styled(" \u{2502} ", Style::default().fg(BORDER_INACTIVE)),
-            Span::styled("Enter", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Enter",
+                Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" confirm ", Style::default().fg(TEXT_DIM)),
             Span::styled("\u{2502} ", Style::default().fg(BORDER_INACTIVE)),
-            Span::styled("Esc", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Esc",
+                Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" clear", Style::default().fg(TEXT_DIM)),
         ]);
         let bar = Paragraph::new(line).style(Style::default().bg(BG_BAR));
@@ -353,33 +394,61 @@ fn render_bottom_bar(frame: &mut Frame, app: &App, area: Rect) {
 
     let hints = match app.focused_panel {
         Panel::Files => vec![
-            ("Tab", "switch"), ("/", "filter"), ("Space/Enter", "toggle"), ("v", "all"), ("x", "rename"), ("q", "quit"),
+            ("Tab", "switch"),
+            ("/", "filter"),
+            ("Space/Enter", "toggle"),
+            ("v", "all"),
+            ("x", "rename"),
+            ("q", "quit"),
         ],
         Panel::Operations => vec![
-            ("Tab", "switch"), ("a", "add"), ("e/Enter", "edit"), ("d", "delete"), ("J/K", "reorder"), ("x", "rename"), ("q", "quit"),
+            ("Tab", "switch"),
+            ("a", "add"),
+            ("e/Enter", "edit"),
+            ("d", "delete"),
+            ("J/K", "reorder"),
+            ("x", "rename"),
+            ("q", "quit"),
         ],
         Panel::Preview => vec![
-            ("Tab", "switch"), ("j/k", "scroll"), ("x", "rename"), ("q", "quit"),
+            ("Tab", "switch"),
+            ("j/k", "scroll"),
+            ("x", "rename"),
+            ("q", "quit"),
         ],
     };
 
     let mut spans: Vec<Span> = vec![Span::raw(" ")];
     for (i, (key, desc)) in hints.iter().enumerate() {
         if i > 0 {
-            spans.push(Span::styled(" \u{2502} ", Style::default().fg(BORDER_INACTIVE)));
+            spans.push(Span::styled(
+                " \u{2502} ",
+                Style::default().fg(BORDER_INACTIVE),
+            ));
         }
-        spans.push(Span::styled(*key, Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)));
-        spans.push(Span::styled(format!(" {}", desc), Style::default().fg(TEXT_DIM)));
+        spans.push(Span::styled(
+            *key,
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        ));
+        spans.push(Span::styled(
+            format!(" {}", desc),
+            Style::default().fg(TEXT_DIM),
+        ));
     }
 
     // Right-aligned help hint
     let left_len: usize = spans.iter().map(|s| s.content.len()).sum();
     let help_text = "? help";
-    let padding = (area.width as usize).saturating_sub(left_len).saturating_sub(help_text.len() + 1);
+    let padding = (area.width as usize)
+        .saturating_sub(left_len)
+        .saturating_sub(help_text.len() + 1);
     if padding > 0 {
         spans.push(Span::raw(" ".repeat(padding)));
     }
-    spans.push(Span::styled("?", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)));
+    spans.push(Span::styled(
+        "?",
+        Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+    ));
     spans.push(Span::styled(" help", Style::default().fg(TEXT_DIM)));
 
     let bar = Paragraph::new(Line::from(spans)).style(Style::default().bg(BG_BAR));
@@ -403,9 +472,10 @@ fn render_confirm(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Clear, popup);
 
     let block = Block::default()
-        .title(Line::from(vec![
-            Span::styled(" Confirm Rename ", Style::default().fg(YELLOW).add_modifier(Modifier::BOLD)),
-        ]))
+        .title(Line::from(vec![Span::styled(
+            " Confirm Rename ",
+            Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
+        )]))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(YELLOW));
 
@@ -414,15 +484,20 @@ fn render_confirm(frame: &mut Frame, app: &App, area: Rect) {
 
     let lines = vec![
         Line::from(""),
-        Line::from(vec![
-            Span::styled(
-                format!("  Rename {} file{}?", rename_count, if rename_count == 1 { "" } else { "s" }),
-                Style::default().fg(TEXT),
+        Line::from(vec![Span::styled(
+            format!(
+                "  Rename {} file{}?",
+                rename_count,
+                if rename_count == 1 { "" } else { "s" }
             ),
-        ]),
+            Style::default().fg(TEXT),
+        )]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("  y", Style::default().fg(GREEN).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "  y",
+                Style::default().fg(GREEN).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" yes ", Style::default().fg(TEXT_DIM)),
             Span::styled("\u{2502} ", Style::default().fg(BORDER_INACTIVE)),
             Span::styled("n", Style::default().fg(RED).add_modifier(Modifier::BOLD)),
@@ -439,9 +514,10 @@ fn render_type_picker(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Clear, popup);
 
     let block = Block::default()
-        .title(Line::from(vec![
-            Span::styled(" Add Operation ", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
-        ]))
+        .title(Line::from(vec![Span::styled(
+            " Add Operation ",
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        )]))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(ACCENT));
 
@@ -461,11 +537,18 @@ fn render_type_picker(frame: &mut Frame, app: &App, area: Rect) {
         .enumerate()
         .map(|(i, name)| {
             let style = if i == app.popup_type_cursor {
-                Style::default().fg(ACCENT).bg(BG_HIGHLIGHT).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(ACCENT)
+                    .bg(BG_HIGHLIGHT)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(TEXT)
             };
-            let marker = if i == app.popup_type_cursor { " \u{25b8} " } else { "   " };
+            let marker = if i == app.popup_type_cursor {
+                " \u{25b8} "
+            } else {
+                "   "
+            };
             ListItem::new(format!("{}{}", marker, name)).style(style)
         })
         .collect();
@@ -486,9 +569,10 @@ fn render_param_editor(frame: &mut Frame, app: &App, area: Rect) {
         " Operation Parameters "
     };
     let block = Block::default()
-        .title(Line::from(vec![
-            Span::styled(title, Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
-        ]))
+        .title(Line::from(vec![Span::styled(
+            title,
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        )]))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(ACCENT));
 
@@ -546,10 +630,18 @@ fn render_param_editor(frame: &mut Frame, app: &App, area: Rect) {
         } else {
             // Text input field — render as a visible input box with cursor
             let value = app.popup_fields.get(i).map(|s| s.as_str()).unwrap_or("");
-            let text_cursor = app.popup_text_cursors.get(i).copied().unwrap_or(value.len());
+            let text_cursor = app
+                .popup_text_cursors
+                .get(i)
+                .copied()
+                .unwrap_or(value.len());
             let field_width: usize = 38;
 
-            let bg = if is_focused { BG_HIGHLIGHT } else { Color::Rgb(35, 35, 50) };
+            let bg = if is_focused {
+                BG_HIGHLIGHT
+            } else {
+                Color::Rgb(35, 35, 50)
+            };
             let fg = if is_focused { TEXT } else { TEXT_DIM };
             let border_color = if is_focused { ACCENT } else { BORDER_INACTIVE };
 
@@ -560,7 +652,10 @@ fn render_param_editor(frame: &mut Frame, app: &App, area: Rect) {
             ];
 
             if is_focused {
-                let byte_cursor = crate::app::char_to_byte_index(value, text_cursor.min(crate::app::char_len(value)));
+                let byte_cursor = crate::app::char_to_byte_index(
+                    value,
+                    text_cursor.min(crate::app::char_len(value)),
+                );
                 let before = &value[..byte_cursor];
                 let after = &value[byte_cursor..];
                 spans.push(Span::styled(before, Style::default().fg(fg).bg(bg)));
@@ -581,13 +676,22 @@ fn render_param_editor(frame: &mut Frame, app: &App, area: Rect) {
 
     lines.push(Line::from(""));
     lines.push(Line::from(vec![
-        Span::styled("  Enter", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "  Enter",
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" confirm ", Style::default().fg(TEXT_DIM)),
         Span::styled("\u{2502} ", Style::default().fg(BORDER_INACTIVE)),
-        Span::styled("Esc", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Esc",
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" cancel ", Style::default().fg(TEXT_DIM)),
         Span::styled("\u{2502} ", Style::default().fg(BORDER_INACTIVE)),
-        Span::styled("Tab", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Tab",
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" next", Style::default().fg(TEXT_DIM)),
     ]));
 
@@ -614,9 +718,10 @@ fn render_help(frame: &mut Frame, area: Rect) {
     frame.render_widget(Clear, popup);
 
     let block = Block::default()
-        .title(Line::from(vec![
-            Span::styled(" Help ", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
-        ]))
+        .title(Line::from(vec![Span::styled(
+            " Help ",
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        )]))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(ACCENT));
 
@@ -624,33 +729,42 @@ fn render_help(frame: &mut Frame, area: Rect) {
     lines.push(Line::from(""));
 
     let sections = vec![
-        ("  Navigation", vec![
-            ("Tab / Shift+Tab", "Cycle panels forward / back"),
-            ("j/k  \u{2191}/\u{2193}", "Move cursor up/down"),
-            ("Ctrl+d / Ctrl+u", "Half-page down / up"),
-            ("PgDn / PgUp", "Full page down / up"),
-            ("g / G", "Jump to top / bottom"),
-        ]),
-        ("  File List", vec![
-            ("Space / Enter", "Toggle file selection"),
-            ("v", "Select / deselect all visible"),
-            ("/", "Filter files (wildcards: * ?)"),
-            ("Esc", "Clear filter"),
-        ]),
-        ("  Operations", vec![
-            ("a", "Add new operation"),
-            ("e / Enter", "Edit selected operation"),
-            ("d", "Delete selected operation"),
-            ("J/K  Shift+\u{2191}/\u{2193}", "Reorder operation up/down"),
-        ]),
-        ("  Execute", vec![
-            ("x", "Rename files (with confirmation)"),
-            ("X", "Force rename (skip confirmation)"),
-        ]),
-        ("  General", vec![
-            ("?", "Toggle this help"),
-            ("q", "Quit"),
-        ]),
+        (
+            "  Navigation",
+            vec![
+                ("Tab / Shift+Tab", "Cycle panels forward / back"),
+                ("j/k  \u{2191}/\u{2193}", "Move cursor up/down"),
+                ("Ctrl+d / Ctrl+u", "Half-page down / up"),
+                ("PgDn / PgUp", "Full page down / up"),
+                ("g / G", "Jump to top / bottom"),
+            ],
+        ),
+        (
+            "  File List",
+            vec![
+                ("Space / Enter", "Toggle file selection"),
+                ("v", "Select / deselect all visible"),
+                ("/", "Filter files (wildcards: * ?)"),
+                ("Esc", "Clear filter"),
+            ],
+        ),
+        (
+            "  Operations",
+            vec![
+                ("a", "Add new operation"),
+                ("e / Enter", "Edit selected operation"),
+                ("d", "Delete selected operation"),
+                ("J/K  Shift+\u{2191}/\u{2193}", "Reorder operation up/down"),
+            ],
+        ),
+        (
+            "  Execute",
+            vec![
+                ("x", "Rename files (with confirmation)"),
+                ("X", "Force rename (skip confirmation)"),
+            ],
+        ),
+        ("  General", vec![("?", "Toggle this help"), ("q", "Quit")]),
     ];
 
     for (heading, items) in sections {
@@ -660,7 +774,10 @@ fn render_help(frame: &mut Frame, area: Rect) {
         )));
         for (key, desc) in items {
             lines.push(Line::from(vec![
-                Span::styled(format!("    {:<20}", key), Style::default().fg(TEXT).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    format!("    {:<20}", key),
+                    Style::default().fg(TEXT).add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(desc, Style::default().fg(TEXT_DIM)),
             ]));
         }

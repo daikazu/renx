@@ -1,7 +1,7 @@
-use std::fs;
 use renx::app::App;
 use renx::files;
 use renx::operations::*;
+use std::fs;
 
 #[test]
 fn end_to_end_rename() {
@@ -114,7 +114,11 @@ fn conflict_detected_when_target_exists_on_disk() {
     let mut app = App::new(file_list);
 
     // Select only a.txt, rename it to b.txt (which exists on disk but isn't selected)
-    let a_idx = app.files.iter().position(|f| f.file_name == "a.txt").unwrap();
+    let a_idx = app
+        .files
+        .iter()
+        .position(|f| f.file_name == "a.txt")
+        .unwrap();
     app.selected[a_idx] = true;
 
     app.operations.push(Operation::FindReplace(FindReplace {

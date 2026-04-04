@@ -54,7 +54,7 @@ impl Operation {
                     CaseMode::Upper => "UPPERCASE",
                     CaseMode::Title => "Title Case",
                 };
-                format!("{}", mode_str)
+                mode_str.to_string()
             }
             Operation::AddPrefix(op) => format!("Prefix \"{}\"", op.prefix),
             Operation::AddSuffix(op) => format!("Suffix \"{}\"", op.suffix),
@@ -68,7 +68,11 @@ impl Operation {
                 format!("Sequential {} ({})", hashes, pos)
             }
             Operation::Slugify(op) => {
-                let sep = if op.separator == "-" { "hyphens" } else { &format!("\"{}\"", op.separator) };
+                let sep = if op.separator == "-" {
+                    "hyphens"
+                } else {
+                    &format!("\"{}\"", op.separator)
+                };
                 format!("Slugify ({})", sep)
             }
         }
@@ -110,7 +114,9 @@ pub struct RegexReplace {
 impl RegexReplace {
     fn apply(&self, filename: &str) -> String {
         match Regex::new(&self.pattern) {
-            Ok(re) => re.replace_all(filename, self.replacement.as_str()).to_string(),
+            Ok(re) => re
+                .replace_all(filename, self.replacement.as_str())
+                .to_string(),
             Err(_) => filename.to_string(),
         }
     }
@@ -217,7 +223,13 @@ impl Slugify {
         let slug: String = stem
             .to_lowercase()
             .chars()
-            .map(|c| if c.is_alphanumeric() { c } else { self.separator.chars().next().unwrap_or('-') })
+            .map(|c| {
+                if c.is_alphanumeric() {
+                    c
+                } else {
+                    self.separator.chars().next().unwrap_or('-')
+                }
+            })
             .collect();
 
         let sep_char = self.separator.chars().next().unwrap_or('-');

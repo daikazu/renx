@@ -41,7 +41,7 @@ pub fn discover_glob(pattern: &str) -> io::Result<Vec<FileEntry>> {
     let paths = glob(pattern).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
     for path_result in paths {
-        let path = path_result.map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        let path = path_result.map_err(io::Error::other)?;
         if path.is_file() {
             if let (Some(parent), Some(name)) = (path.parent(), path.file_name()) {
                 if let Some(name_str) = name.to_str() {

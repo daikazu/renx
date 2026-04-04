@@ -1,4 +1,7 @@
-use renx::operations::{AddPrefix, AddSuffix, CaseChange, CaseMode, FindReplace, NumberPosition, Operation, RegexReplace, RemovePattern, SequentialNumber, Slugify};
+use renx::operations::{
+    AddPrefix, AddSuffix, CaseChange, CaseMode, FindReplace, NumberPosition, Operation,
+    RegexReplace, RemovePattern, SequentialNumber, Slugify,
+};
 
 #[test]
 fn find_replace_basic() {
@@ -81,19 +84,25 @@ fn regex_replace_invalid_pattern_returns_original() {
 
 #[test]
 fn case_change_lowercase() {
-    let op = Operation::CaseChange(CaseChange { mode: CaseMode::Lower });
+    let op = Operation::CaseChange(CaseChange {
+        mode: CaseMode::Lower,
+    });
     assert_eq!(op.apply("MY_FILE.TXT"), "my_file.txt");
 }
 
 #[test]
 fn case_change_uppercase() {
-    let op = Operation::CaseChange(CaseChange { mode: CaseMode::Upper });
+    let op = Operation::CaseChange(CaseChange {
+        mode: CaseMode::Upper,
+    });
     assert_eq!(op.apply("my_file.txt"), "MY_FILE.TXT");
 }
 
 #[test]
 fn case_change_title() {
-    let op = Operation::CaseChange(CaseChange { mode: CaseMode::Title });
+    let op = Operation::CaseChange(CaseChange {
+        mode: CaseMode::Title,
+    });
     assert_eq!(op.apply("hello world.txt"), "Hello World.txt");
 }
 
@@ -164,31 +173,41 @@ fn sequential_replace() {
 
 #[test]
 fn slugify_basic() {
-    let op = Operation::Slugify(Slugify { separator: "-".to_string() });
+    let op = Operation::Slugify(Slugify {
+        separator: "-".to_string(),
+    });
     assert_eq!(op.apply("My Cool Photo.JPG"), "my-cool-photo.jpg");
 }
 
 #[test]
 fn slugify_special_chars() {
-    let op = Operation::Slugify(Slugify { separator: "-".to_string() });
+    let op = Operation::Slugify(Slugify {
+        separator: "-".to_string(),
+    });
     assert_eq!(op.apply("Hello (World) [2024].txt"), "hello-world-2024.txt");
 }
 
 #[test]
 fn slugify_collapses_separators() {
-    let op = Operation::Slugify(Slugify { separator: "-".to_string() });
+    let op = Operation::Slugify(Slugify {
+        separator: "-".to_string(),
+    });
     assert_eq!(op.apply("too   many---spaces.png"), "too-many-spaces.png");
 }
 
 #[test]
 fn slugify_custom_separator() {
-    let op = Operation::Slugify(Slugify { separator: "_".to_string() });
+    let op = Operation::Slugify(Slugify {
+        separator: "_".to_string(),
+    });
     assert_eq!(op.apply("My Cool Photo.JPG"), "my_cool_photo.jpg");
 }
 
 #[test]
 fn slugify_no_extension() {
-    let op = Operation::Slugify(Slugify { separator: "-".to_string() });
+    let op = Operation::Slugify(Slugify {
+        separator: "-".to_string(),
+    });
     assert_eq!(op.apply("README"), "readme");
 }
 
@@ -202,14 +221,18 @@ fn add_suffix_dotfile() {
 
 #[test]
 fn case_change_title_preserves_extension() {
-    let op = Operation::CaseChange(CaseChange { mode: CaseMode::Title });
+    let op = Operation::CaseChange(CaseChange {
+        mode: CaseMode::Title,
+    });
     assert_eq!(op.apply("hello world.txt"), "Hello World.txt");
     assert_eq!(op.apply("my photo.JPG"), "My Photo.jpg");
 }
 
 #[test]
 fn slugify_preserves_non_ascii_alphanumeric() {
-    let op = Operation::Slugify(Slugify { separator: "-".to_string() });
+    let op = Operation::Slugify(Slugify {
+        separator: "-".to_string(),
+    });
     assert_eq!(op.apply("café photo.jpg"), "café-photo.jpg");
 }
 
