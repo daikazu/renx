@@ -126,3 +126,16 @@ fn conflict_detected_when_target_exists_on_disk() {
     // Should detect conflict: b.txt already exists on disk
     assert!(app.has_errors());
 }
+
+#[test]
+fn filter_handles_unicode_filenames() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("café_photo.jpg"), "").unwrap();
+    fs::write(dir.path().join("café_video.mp4"), "").unwrap();
+
+    let file_list = files::discover_dir(dir.path()).unwrap();
+    let mut app = App::new(file_list);
+    app.filter_text = "café".to_string();
+    app.update_filter();
+    assert_eq!(app.filtered_indices.len(), 2);
+}

@@ -158,12 +158,12 @@ fn infer_filter(filenames: &[String]) -> Option<String> {
         .collect();
 
     if stems.len() >= 2 {
-        // Find longest common substring across all stems
         let first = &stems[0];
-        for len in (3..=first.len()).rev() {
-            for start in 0..=first.len() - len {
-                let candidate = &first[start..start + len];
-                if stems.iter().all(|s| s.contains(candidate)) {
+        let chars: Vec<char> = first.chars().collect();
+        for len in (3..=chars.len()).rev() {
+            for start in 0..=chars.len() - len {
+                let candidate: String = chars[start..start + len].iter().collect();
+                if stems.iter().all(|s| s.contains(&candidate)) {
                     return Some(format!("*{}*", candidate));
                 }
             }
