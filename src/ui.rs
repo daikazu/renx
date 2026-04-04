@@ -560,8 +560,9 @@ fn render_param_editor(frame: &mut Frame, app: &App, area: Rect) {
             ];
 
             if is_focused {
-                let before = &value[..text_cursor.min(value.len())];
-                let after = &value[text_cursor.min(value.len())..];
+                let byte_cursor = crate::app::char_to_byte_index(value, text_cursor.min(crate::app::char_len(value)));
+                let before = &value[..byte_cursor];
+                let after = &value[byte_cursor..];
                 spans.push(Span::styled(before, Style::default().fg(fg).bg(bg)));
                 spans.push(Span::styled("\u{258e}", Style::default().fg(ACCENT).bg(bg)));
                 let pad_len = field_width.saturating_sub(before.len() + after.len() + 1);

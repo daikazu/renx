@@ -300,6 +300,20 @@ impl App {
     }
 }
 
+/// Convert a character index to a byte index in a string.
+/// Returns `s.len()` if char_idx is at or beyond the end.
+pub fn char_to_byte_index(s: &str, char_idx: usize) -> usize {
+    s.char_indices()
+        .nth(char_idx)
+        .map(|(byte_pos, _)| byte_pos)
+        .unwrap_or(s.len())
+}
+
+/// Get the character length of a string (not byte length).
+pub fn char_len(s: &str) -> usize {
+    s.chars().count()
+}
+
 /// Simple glob-style wildcard matching.
 /// `*` matches zero or more characters, `?` matches exactly one character.
 fn wildcard_match(pattern: &str, text: &str) -> bool {

@@ -331,7 +331,7 @@ fn handle_param_editor(app: &mut App, key: KeyEvent) {
         }
         KeyCode::Right if !is_selector => {
             if let Some(pos) = app.popup_text_cursors.get_mut(cursor) {
-                let len = app.popup_fields.get(cursor).map(|f| f.len()).unwrap_or(0);
+                let len = app.popup_fields.get(cursor).map(|f| crate::app::char_len(f)).unwrap_or(0);
                 if *pos < len {
                     *pos += 1;
                 }
@@ -344,7 +344,7 @@ fn handle_param_editor(app: &mut App, key: KeyEvent) {
         }
         KeyCode::End if !is_selector => {
             if let Some(pos) = app.popup_text_cursors.get_mut(cursor) {
-                *pos = app.popup_fields.get(cursor).map(|f| f.len()).unwrap_or(0);
+                *pos = app.popup_fields.get(cursor).map(|f| crate::app::char_len(f)).unwrap_or(0);
             }
         }
         // Text fields: editing
@@ -352,7 +352,9 @@ fn handle_param_editor(app: &mut App, key: KeyEvent) {
             if let Some(pos) = app.popup_text_cursors.get_mut(cursor) {
                 if *pos > 0 {
                     if let Some(field) = app.popup_fields.get_mut(cursor) {
-                        field.remove(*pos - 1);
+                        let byte_start = crate::app::char_to_byte_index(field, *pos - 1);
+                        let byte_end = crate::app::char_to_byte_index(field, *pos);
+                        field.replace_range(byte_start..byte_end, "");
                         *pos -= 1;
                     }
                 }
@@ -361,15 +363,19 @@ fn handle_param_editor(app: &mut App, key: KeyEvent) {
         KeyCode::Delete if !is_selector => {
             let pos = app.popup_text_cursors.get(cursor).copied().unwrap_or(0);
             if let Some(field) = app.popup_fields.get_mut(cursor) {
-                if pos < field.len() {
-                    field.remove(pos);
+                let char_count = crate::app::char_len(field);
+                if pos < char_count {
+                    let byte_start = crate::app::char_to_byte_index(field, pos);
+                    let byte_end = crate::app::char_to_byte_index(field, pos + 1);
+                    field.replace_range(byte_start..byte_end, "");
                 }
             }
         }
         KeyCode::Char(c) if !is_selector => {
             let pos = app.popup_text_cursors.get(cursor).copied().unwrap_or(0);
             if let Some(field) = app.popup_fields.get_mut(cursor) {
-                field.insert(pos, c);
+                let byte_pos = crate::app::char_to_byte_index(field, pos);
+                field.insert(byte_pos, c);
             }
             if let Some(p) = app.popup_text_cursors.get_mut(cursor) {
                 *p += 1;
@@ -561,7 +567,7 @@ fn start_editing_operation(app: &mut App) {
     }
 
     // Set text cursors to end of each pre-filled value
-    app.popup_text_cursors = app.popup_fields.iter().map(|f| f.len()).collect();
+    app.popup_text_cursors = app.popup_fields.iter().map(|f| crate::app::char_len(f)).collect();
     app.popup_field_cursor = 0;
     app.editing_op_index = Some(app.op_cursor);
     app.input_mode = InputMode::EditingOperationParams;
