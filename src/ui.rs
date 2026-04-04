@@ -260,7 +260,7 @@ fn render_preview(frame: &mut Frame, app: &mut App, area: Rect) {
     let max_old_len = app
         .preview
         .iter()
-        .map(|(old, _)| old.len())
+        .map(|(idx, _)| app.files[*idx].file_name.len())
         .max()
         .unwrap_or(0)
         .max(8);
@@ -280,9 +280,10 @@ fn render_preview(frame: &mut Frame, app: &mut App, area: Rect) {
     let start = app.preview_scroll;
     let end = (start + visible_count).min(app.preview.len());
 
-    for (display_idx, (old, new)) in app.preview[start..end].iter().enumerate() {
+    for (display_idx, (file_idx, new)) in app.preview[start..end].iter().enumerate() {
         let actual_idx = start + display_idx;
         let is_conflict = conflicts.contains(&actual_idx);
+        let old = &app.files[*file_idx].file_name;
         let is_noop = old == new;
 
         let new_style = if is_conflict {
@@ -395,7 +396,7 @@ fn render_confirm(frame: &mut Frame, app: &App, area: Rect) {
     let rename_count = app
         .preview
         .iter()
-        .filter(|(old, new)| old != new)
+        .filter(|(idx, new)| app.files[*idx].file_name != *new)
         .count();
 
     let popup = centered_rect(44, 7, area);

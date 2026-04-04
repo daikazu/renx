@@ -40,7 +40,7 @@ pub struct App {
     /// Current input mode (normal vs popup).
     pub input_mode: InputMode,
     /// Cached preview results (new filenames for selected files).
-    pub preview: Vec<(String, String)>,
+    pub preview: Vec<(usize, String)>,
     /// Scroll offset for the preview panel.
     pub preview_scroll: usize,
     /// Whether the user has confirmed execution and the app should quit.
@@ -157,17 +157,25 @@ impl App {
             return;
         }
         let pipeline = Pipeline::new(self.operations.clone());
-        let selected_files: Vec<String> = self
+        let selected: Vec<(usize, String)> = self
             .filtered_indices
             .iter()
             .filter(|&&i| self.selected[i])
-            .map(|&i| self.files[i].file_name.clone())
+            .map(|&i| (i, self.files[i].file_name.clone()))
             .collect();
-        let new_names = pipeline.apply(&selected_files);
-        self.preview = selected_files
-            .into_iter()
+        let old_names: Vec<String> = selected.iter().map(|(_, n)| n.clone()).collect();
+        let new_names = pipeline.apply(&old_names);
+        self.preview = selected
+            .iter()
+            .map(|(idx, _)| *idx)
             .zip(new_names.into_iter())
             .collect();
+        // Clamp preview_scroll when preview shrinks
+        if self.preview.is_empty() {
+            self.preview_scroll = 0;
+        } else if self.preview_scroll >= self.preview.len() {
+            self.preview_scroll = self.preview.len() - 1;
+        }
     }
 
     /// Count of selected files.
@@ -246,19 +254,27 @@ impl App {
     /// Returns indices of conflicting entries.
     pub fn find_conflicts(&self) -> Vec<usize> {
         let mut conflicts = Vec::new();
-        for (i, (_, new_a)) in self.preview.iter().enumerate() {
-            for (j, (_, new_b)) in self.preview.iter().enumerate() {
-                if i != j && new_a == new_b {
+        for (i, (idx_a, new_a)) in self.preview.iter().enumerate() {
+            // Check for duplicates within the same parent directory
+            for (j, (idx_b, new_b)) in self.preview.iter().enumerate() {
+                if i != j
+                    && new_a == new_b
+                    && self.files[*idx_a].parent_dir == self.files[*idx_b].parent_dir
+                {
                     conflicts.push(i);
                     break;
                 }
             }
-            if new_a.is_empty() {
-                conflicts.push(i);
+            if new_a.is_empty() || new_a.trim().is_empty() {
+                if !conflicts.contains(&i) {
+                    conflicts.push(i);
+                }
                 continue;
             }
-            if new_a.contains('/') || new_a.contains('\0') {
-                conflicts.push(i);
+            if new_a.contains('/') || new_a.contains('\0') || new_a.contains('\\') {
+                if !conflicts.contains(&i) {
+                    conflicts.push(i);
+                }
             }
         }
         conflicts

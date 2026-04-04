@@ -571,15 +571,14 @@ fn execute_renames(app: &mut App) {
     let mut success = 0;
     let mut failures: Vec<String> = Vec::new();
 
-    for (old_name, new_name) in &app.preview {
-        if old_name == new_name {
+    for (file_idx, new_name) in &app.preview {
+        let entry = &app.files[*file_idx];
+        if entry.file_name == *new_name {
             continue;
         }
-        if let Some(entry) = app.files.iter().find(|f| f.file_name == *old_name) {
-            match crate::files::rename_file(entry, new_name) {
-                Ok(_) => success += 1,
-                Err(e) => failures.push(format!("{}: {}", old_name, e)),
-            }
+        match crate::files::rename_file(entry, new_name) {
+            Ok(_) => success += 1,
+            Err(e) => failures.push(format!("{}: {}", entry.file_name, e)),
         }
     }
 
