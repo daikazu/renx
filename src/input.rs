@@ -34,9 +34,10 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
             // Don't clear existing filter — user can continue editing it
         }
         KeyCode::Char('X') => {
-            // Force rename — skip confirmation, ignore conflicts
             if app.preview.is_empty() {
                 app.status_message = "No files to rename".to_string();
+            } else if app.has_errors() {
+                app.status_message = "Cannot execute: conflicts detected".to_string();
             } else {
                 execute_renames(app);
             }
