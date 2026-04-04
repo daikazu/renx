@@ -83,6 +83,9 @@ pub struct FindReplace {
 
 impl FindReplace {
     fn apply(&self, filename: &str) -> String {
+        if self.search.is_empty() {
+            return filename.to_string();
+        }
         filename.replace(&self.search, &self.replacement)
     }
 }
@@ -130,19 +133,26 @@ impl CaseChange {
         match self.mode {
             CaseMode::Lower => filename.to_lowercase(),
             CaseMode::Upper => filename.to_uppercase(),
-            CaseMode::Title => filename
-                .split_inclusive(|c: char| !c.is_alphanumeric())
-                .map(|word| {
-                    let mut chars = word.chars();
-                    match chars.next() {
-                        Some(c) => {
-                            let upper: String = c.to_uppercase().collect();
-                            upper + &chars.as_str().to_lowercase()
+            CaseMode::Title => {
+                let (stem, ext) = match filename.rfind('.') {
+                    Some(0) | None => (filename, ""),
+                    Some(dot_pos) => (&filename[..dot_pos], &filename[dot_pos..]),
+                };
+                let titled_stem: String = stem
+                    .split_inclusive(|c: char| !c.is_alphanumeric())
+                    .map(|word| {
+                        let mut chars = word.chars();
+                        match chars.next() {
+                            Some(c) => {
+                                let upper: String = c.to_uppercase().collect();
+                                upper + &chars.as_str().to_lowercase()
+                            }
+                            None => String::new(),
                         }
-                        None => String::new(),
-                    }
-                })
-                .collect(),
+                    })
+                    .collect();
+                format!("{}{}", titled_stem, ext.to_lowercase())
+            }
         }
     }
 }
@@ -166,12 +176,12 @@ pub struct AddSuffix {
 impl AddSuffix {
     fn apply(&self, filename: &str) -> String {
         match filename.rfind('.') {
+            Some(0) | None => format!("{}{}", filename, self.suffix),
             Some(dot_pos) => {
                 let stem = &filename[..dot_pos];
                 let ext = &filename[dot_pos..];
                 format!("{}{}{}", stem, self.suffix, ext)
             }
-            None => format!("{}{}", filename, self.suffix),
         }
     }
 }
@@ -207,7 +217,7 @@ impl Slugify {
         let slug: String = stem
             .to_lowercase()
             .chars()
-            .map(|c| if c.is_ascii_alphanumeric() { c } else { self.separator.chars().next().unwrap_or('-') })
+            .map(|c| if c.is_alphanumeric() { c } else { self.separator.chars().next().unwrap_or('-') })
             .collect();
 
         let sep_char = self.separator.chars().next().unwrap_or('-');
@@ -238,23 +248,15 @@ impl SequentialNumber {
         let number = self.start + index as u32;
         let formatted = format!("{:0>width$}", number, width = self.format_width as usize);
 
+        let (stem, ext) = match filename.rfind('.') {
+            Some(0) | None => (filename, ""),
+            Some(dot_pos) => (&filename[..dot_pos], &filename[dot_pos..]),
+        };
+
         match self.position {
             NumberPosition::Prefix => format!("{}_{}", formatted, filename),
-            NumberPosition::Suffix => match filename.rfind('.') {
-                Some(dot_pos) => {
-                    let stem = &filename[..dot_pos];
-                    let ext = &filename[dot_pos..];
-                    format!("{}_{}{}", stem, formatted, ext)
-                }
-                None => format!("{}_{}", filename, formatted),
-            },
-            NumberPosition::Replace => match filename.rfind('.') {
-                Some(dot_pos) => {
-                    let ext = &filename[dot_pos..];
-                    format!("{}{}", formatted, ext)
-                }
-                None => formatted,
-            },
+            NumberPosition::Suffix => format!("{}_{}{}", stem, formatted, ext),
+            NumberPosition::Replace => format!("{}{}", formatted, ext),
         }
     }
 }

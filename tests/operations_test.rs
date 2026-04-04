@@ -94,7 +94,7 @@ fn case_change_uppercase() {
 #[test]
 fn case_change_title() {
     let op = Operation::CaseChange(CaseChange { mode: CaseMode::Title });
-    assert_eq!(op.apply("hello world.txt"), "Hello World.Txt");
+    assert_eq!(op.apply("hello world.txt"), "Hello World.txt");
 }
 
 #[test]
@@ -190,4 +190,44 @@ fn slugify_custom_separator() {
 fn slugify_no_extension() {
     let op = Operation::Slugify(Slugify { separator: "-".to_string() });
     assert_eq!(op.apply("README"), "readme");
+}
+
+#[test]
+fn add_suffix_dotfile() {
+    let op = Operation::AddSuffix(AddSuffix {
+        suffix: "_backup".to_string(),
+    });
+    assert_eq!(op.apply(".gitignore"), ".gitignore_backup");
+}
+
+#[test]
+fn case_change_title_preserves_extension() {
+    let op = Operation::CaseChange(CaseChange { mode: CaseMode::Title });
+    assert_eq!(op.apply("hello world.txt"), "Hello World.txt");
+    assert_eq!(op.apply("my photo.JPG"), "My Photo.jpg");
+}
+
+#[test]
+fn slugify_preserves_non_ascii_alphanumeric() {
+    let op = Operation::Slugify(Slugify { separator: "-".to_string() });
+    assert_eq!(op.apply("café photo.jpg"), "café-photo.jpg");
+}
+
+#[test]
+fn find_replace_empty_search_is_noop() {
+    let op = Operation::FindReplace(FindReplace {
+        search: "".to_string(),
+        replacement: "x".to_string(),
+    });
+    assert_eq!(op.apply("hello.txt"), "hello.txt");
+}
+
+#[test]
+fn sequential_suffix_dotfile() {
+    let op = Operation::SequentialNumber(SequentialNumber {
+        format_width: 2,
+        start: 1,
+        position: NumberPosition::Suffix,
+    });
+    assert_eq!(op.apply_with_index(".gitignore", 0), ".gitignore_01");
 }
