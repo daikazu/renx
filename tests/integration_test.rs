@@ -139,3 +139,63 @@ fn filter_handles_unicode_filenames() {
     app.update_filter();
     assert_eq!(app.filtered_indices.len(), 2);
 }
+
+#[test]
+fn preview_scroll_clamped_when_preview_shrinks() {
+    let dir = tempfile::tempdir().unwrap();
+    for i in 0..20 {
+        fs::write(dir.path().join(format!("file_{:02}.txt", i)), "").unwrap();
+    }
+
+    let file_list = files::discover_dir(dir.path()).unwrap();
+    let mut app = App::new(file_list);
+    app.toggle_select_all();
+    app.operations.push(Operation::AddPrefix(AddPrefix {
+        prefix: "new_".to_string(),
+    }));
+    app.update_preview();
+
+    // Scroll to near the end
+    app.preview_scroll = 19;
+
+    // Now deselect all — preview becomes empty
+    app.toggle_select_all();
+    app.update_preview();
+
+    // preview_scroll should be clamped to 0
+    assert_eq!(app.preview_scroll, 0);
+}
+
+#[test]
+fn same_new_name_different_directories_is_not_conflict() {
+    let dir = tempfile::tempdir().unwrap();
+    let sub_a = dir.path().join("a");
+    let sub_b = dir.path().join("b");
+    fs::create_dir(&sub_a).unwrap();
+    fs::create_dir(&sub_b).unwrap();
+    fs::write(sub_a.join("old.txt"), "").unwrap();
+    fs::write(sub_b.join("old.txt"), "").unwrap();
+
+    let files = vec![
+        files::FileEntry {
+            file_name: "old.txt".to_string(),
+            parent_dir: sub_a.clone(),
+        },
+        files::FileEntry {
+            file_name: "old.txt".to_string(),
+            parent_dir: sub_b.clone(),
+        },
+    ];
+
+    let mut app = App::new(files);
+    app.toggle_select_all();
+
+    // Both rename to "new.txt" — should be fine since different directories
+    app.operations.push(Operation::FindReplace(FindReplace {
+        search: "old".to_string(),
+        replacement: "new".to_string(),
+    }));
+    app.update_preview();
+
+    assert!(!app.has_errors());
+}
