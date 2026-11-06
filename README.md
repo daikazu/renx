@@ -8,15 +8,15 @@ A terminal UI tool for bulk file renaming. Select files, stack operations, previ
 
 - **Three-panel TUI** -- file list, operation stack, and live preview side by side
 - **Stackable operations** -- chain multiple rename transforms in order:
-  - Find & Replace
+  - Find & Replace (optionally ignoring case)
   - Regex Replace (patterns are validated as you add them)
-  - Remove Pattern
+  - Remove Pattern (optionally ignoring case)
   - Case Change (lower, UPPER, Title, Sentence, snake_case, kebab-case, camelCase)
   - Add Prefix / Suffix
   - Insert Text at a position from the start or end
   - Trim Characters from the start or end
   - Truncate to a maximum length
-  - Sequential Numbering (prefix, suffix, or replace)
+  - Sequential Numbering (prefix, suffix, or replace, with start, step, and separator)
   - Zero-pad Numbers (`track 3` becomes `track 03`)
   - Insert Date from the file's modified or created time, with a strftime format
   - Change Extension (replace, add, or remove)

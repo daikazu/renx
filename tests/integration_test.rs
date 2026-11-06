@@ -16,6 +16,7 @@ fn end_to_end_rename() {
 
     // Add operations: replace IMG_ with beach_, then lowercase
     app.operations.push(Operation::FindReplace(FindReplace {
+        ignore_case: false,
         scope: Scope::Both,
         search: "IMG_".to_string(),
         replacement: "beach_".to_string(),
@@ -93,11 +94,13 @@ fn conflict_detection_blocks_execution() {
 
     // Both files would rename to the same thing
     app.operations.push(Operation::FindReplace(FindReplace {
+        ignore_case: false,
         scope: Scope::Both,
         search: "a".to_string(),
         replacement: "x".to_string(),
     }));
     app.operations.push(Operation::FindReplace(FindReplace {
+        ignore_case: false,
         scope: Scope::Both,
         search: "b".to_string(),
         replacement: "x".to_string(),
@@ -126,6 +129,7 @@ fn conflict_detected_when_target_exists_on_disk() {
     app.selected[a_idx] = true;
 
     app.operations.push(Operation::FindReplace(FindReplace {
+        ignore_case: false,
         scope: Scope::Both,
         search: "a".to_string(),
         replacement: "b".to_string(),
@@ -272,6 +276,7 @@ fn same_new_name_different_directories_is_not_conflict() {
 
     // Both rename to "new.txt" — should be fine since different directories
     app.operations.push(Operation::FindReplace(FindReplace {
+        ignore_case: false,
         scope: Scope::Both,
         search: "old".to_string(),
         replacement: "new".to_string(),

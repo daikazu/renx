@@ -182,14 +182,20 @@ impl Operation {
         match self {
             Operation::FindReplace(op) => {
                 format!(
-                    "Replace \"{}\" → \"{}\"{}",
+                    "Replace \"{}\" → \"{}\"{}{}",
                     op.search,
                     op.replacement,
+                    ignore_case_suffix(op.ignore_case),
                     op.scope.suffix()
                 )
             }
             Operation::RemovePattern(op) => {
-                format!("Remove \"{}\"{}", op.pattern, op.scope.suffix())
+                format!(
+                    "Remove \"{}\"{}{}",
+                    op.pattern,
+                    ignore_case_suffix(op.ignore_case),
+                    op.scope.suffix()
+                )
             }
             Operation::RegexReplace(op) => {
                 format!(
@@ -211,7 +217,15 @@ impl Operation {
                     NumberPosition::Replace => "replace",
                 };
                 let hashes: String = "#".repeat(op.format_width as usize);
-                format!("Sequential {} ({})", hashes, pos)
+                let mut desc = format!("Sequential {} ({}", hashes, pos);
+                if op.step != 1 {
+                    desc.push_str(&format!(", step {}", op.step));
+                }
+                if op.separator != "_" {
+                    desc.push_str(&format!(", sep \"{}\"", op.separator));
+                }
+                desc.push(')');
+                desc
             }
             Operation::Slugify(op) => {
                 let sep = if op.separator == "-" {
@@ -266,6 +280,7 @@ pub struct FindReplace {
     pub search: String,
     pub replacement: String,
     pub scope: Scope,
+    pub ignore_case: bool,
 }
 
 impl FindReplace {
@@ -274,8 +289,30 @@ impl FindReplace {
             return filename.to_string();
         }
         apply_scoped(filename, &self.scope, |s| {
-            s.replace(&self.search, &self.replacement)
+            replace_literal(s, &self.search, &self.replacement, self.ignore_case)
         })
+    }
+}
+
+/// Replace every occurrence of `search` with `replacement`, taken literally.
+/// With `ignore_case` the match is case-insensitive (Unicode aware).
+fn replace_literal(text: &str, search: &str, replacement: &str, ignore_case: bool) -> String {
+    if !ignore_case {
+        return text.replace(search, replacement);
+    }
+    match Regex::new(&format!("(?i){}", regex::escape(search))) {
+        Ok(re) => re
+            .replace_all(text, regex::NoExpand(replacement))
+            .to_string(),
+        Err(_) => text.to_string(),
+    }
+}
+
+fn ignore_case_suffix(ignore_case: bool) -> &'static str {
+    if ignore_case {
+        " (ignore case)"
+    } else {
+        ""
     }
 }
 
@@ -283,6 +320,7 @@ impl FindReplace {
 pub struct RemovePattern {
     pub pattern: String,
     pub scope: Scope,
+    pub ignore_case: bool,
 }
 
 impl RemovePattern {
@@ -290,7 +328,9 @@ impl RemovePattern {
         if self.pattern.is_empty() {
             return filename.to_string();
         }
-        apply_scoped(filename, &self.scope, |s| s.replace(&self.pattern, ""))
+        apply_scoped(filename, &self.scope, |s| {
+            replace_literal(s, &self.pattern, "", self.ignore_case)
+        })
     }
 }
 
@@ -468,6 +508,10 @@ pub enum NumberPosition {
 pub struct SequentialNumber {
     pub format_width: u32,
     pub start: u32,
+    /// Amount added for each successive file (1 = consecutive numbers).
+    pub step: u32,
+    /// Text between the number and the name; ignored for `Replace`.
+    pub separator: String,
     pub position: NumberPosition,
 }
 
@@ -527,17 +571,15 @@ impl Slugify {
 
 impl SequentialNumber {
     fn apply(&self, filename: &str, index: usize) -> String {
-        let number = self.start + index as u32;
+        let number = self
+            .start
+            .saturating_add((index as u32).saturating_mul(self.step));
         let formatted = format!("{:0>width$}", number, width = self.format_width as usize);
-
-        let (stem, ext) = match filename.rfind('.') {
-            Some(0) | None => (filename, ""),
-            Some(dot_pos) => (&filename[..dot_pos], &filename[dot_pos..]),
-        };
+        let (stem, ext) = split_ext(filename);
 
         match self.position {
-            NumberPosition::Prefix => format!("{}_{}", formatted, filename),
-            NumberPosition::Suffix => format!("{}_{}{}", stem, formatted, ext),
+            NumberPosition::Prefix => format!("{}{}{}", formatted, self.separator, filename),
+            NumberPosition::Suffix => format!("{}{}{}{}", stem, self.separator, formatted, ext),
             NumberPosition::Replace => format!("{}{}", formatted, ext),
         }
     }
@@ -805,6 +847,7 @@ const CASE_MODES: &[&str] = &[
     "lower", "upper", "title", "sentence", "snake", "kebab", "camel",
 ];
 const DATE_SOURCES: &[&str] = &["modified", "created"];
+const YES_NO: &[&str] = &["no", "yes"];
 
 pub const T_FIND_REPLACE: usize = 0;
 pub const T_REGEX_REPLACE: usize = 1;
@@ -829,6 +872,7 @@ pub const OP_TYPES: &[OpTypeSpec] = &[
         fields: &[
             text("Search:", ""),
             text("Replace with:", ""),
+            choice("Ignore case:", YES_NO, "no"),
             choice("Scope:", SCOPES, "both"),
         ],
     },
@@ -844,6 +888,7 @@ pub const OP_TYPES: &[OpTypeSpec] = &[
         name: "Remove Pattern",
         fields: &[
             text("Pattern to remove:", ""),
+            choice("Ignore case:", YES_NO, "no"),
             choice("Scope:", SCOPES, "both"),
         ],
     },
@@ -888,6 +933,8 @@ pub const OP_TYPES: &[OpTypeSpec] = &[
         fields: &[
             text("Width (e.g. 3):", "3"),
             text("Start number:", "1"),
+            text("Step:", "1"),
+            text("Separator:", "_"),
             choice("Position:", POSITIONS, "prefix"),
         ],
     },

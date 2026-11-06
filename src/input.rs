@@ -432,7 +432,8 @@ fn build_operation_from_fields(app: &App) -> Option<Operation> {
         T_FIND_REPLACE => Operation::FindReplace(FindReplace {
             search: field(app, 0),
             replacement: field(app, 1),
-            scope: Scope::from_label(&field(app, 2)),
+            ignore_case: field(app, 2) == "yes",
+            scope: Scope::from_label(&field(app, 3)),
         }),
         T_REGEX_REPLACE => Operation::RegexReplace(RegexReplace {
             pattern: field(app, 0),
@@ -441,7 +442,8 @@ fn build_operation_from_fields(app: &App) -> Option<Operation> {
         }),
         T_REMOVE_PATTERN => Operation::RemovePattern(RemovePattern {
             pattern: field(app, 0),
-            scope: Scope::from_label(&field(app, 1)),
+            ignore_case: field(app, 1) == "yes",
+            scope: Scope::from_label(&field(app, 2)),
         }),
         T_CASE_CHANGE => Operation::CaseChange(CaseChange {
             mode: CaseMode::from_label(&field(app, 0)),
@@ -471,7 +473,9 @@ fn build_operation_from_fields(app: &App) -> Option<Operation> {
         T_SEQUENTIAL => Operation::SequentialNumber(SequentialNumber {
             format_width: number(app, 0, 3),
             start: number(app, 1, 1),
-            position: match field(app, 2).as_str() {
+            step: number(app, 2, 1),
+            separator: field(app, 3),
+            position: match field(app, 4).as_str() {
                 "suffix" => NumberPosition::Suffix,
                 "replace" => NumberPosition::Replace,
                 _ => NumberPosition::Prefix,
@@ -565,6 +569,14 @@ fn set_choice(app: &mut App, i: usize, label: &str) {
     }
 }
 
+fn yes_no(value: bool) -> &'static str {
+    if value {
+        "yes"
+    } else {
+        "no"
+    }
+}
+
 fn position_label(position: &NumberPosition) -> &'static str {
     match position {
         NumberPosition::Prefix => "prefix",
@@ -583,7 +595,8 @@ pub fn start_editing_operation(app: &mut App) {
         Operation::FindReplace(o) => {
             set_text(app, 0, o.search.clone());
             set_text(app, 1, o.replacement.clone());
-            set_choice(app, 2, o.scope.label());
+            set_choice(app, 2, yes_no(o.ignore_case));
+            set_choice(app, 3, o.scope.label());
         }
         Operation::RegexReplace(o) => {
             set_text(app, 0, o.pattern.clone());
@@ -592,7 +605,8 @@ pub fn start_editing_operation(app: &mut App) {
         }
         Operation::RemovePattern(o) => {
             set_text(app, 0, o.pattern.clone());
-            set_choice(app, 1, o.scope.label());
+            set_choice(app, 1, yes_no(o.ignore_case));
+            set_choice(app, 2, o.scope.label());
         }
         Operation::CaseChange(o) => {
             set_choice(app, 0, o.mode.label());
@@ -618,7 +632,9 @@ pub fn start_editing_operation(app: &mut App) {
         Operation::SequentialNumber(o) => {
             set_text(app, 0, o.format_width.to_string());
             set_text(app, 1, o.start.to_string());
-            set_choice(app, 2, position_label(&o.position));
+            set_text(app, 2, o.step.to_string());
+            set_text(app, 3, o.separator.clone());
+            set_choice(app, 4, position_label(&o.position));
         }
         Operation::ZeroPad(o) => {
             set_text(app, 0, o.width.to_string());

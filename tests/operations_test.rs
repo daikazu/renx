@@ -7,6 +7,7 @@ use renx::operations::{
 #[test]
 fn find_replace_basic() {
     let op = Operation::FindReplace(FindReplace {
+        ignore_case: false,
         scope: Scope::Both,
         search: "IMG_".to_string(),
         replacement: "vacation_".to_string(),
@@ -17,6 +18,7 @@ fn find_replace_basic() {
 #[test]
 fn find_replace_multiple_occurrences() {
     let op = Operation::FindReplace(FindReplace {
+        ignore_case: false,
         scope: Scope::Both,
         search: "a".to_string(),
         replacement: "b".to_string(),
@@ -27,6 +29,7 @@ fn find_replace_multiple_occurrences() {
 #[test]
 fn find_replace_no_match() {
     let op = Operation::FindReplace(FindReplace {
+        ignore_case: false,
         scope: Scope::Both,
         search: "xyz".to_string(),
         replacement: "abc".to_string(),
@@ -37,6 +40,7 @@ fn find_replace_no_match() {
 #[test]
 fn remove_pattern_basic() {
     let op = Operation::RemovePattern(RemovePattern {
+        ignore_case: false,
         scope: Scope::Both,
         pattern: "copy of ".to_string(),
     });
@@ -46,6 +50,7 @@ fn remove_pattern_basic() {
 #[test]
 fn remove_pattern_multiple() {
     let op = Operation::RemovePattern(RemovePattern {
+        ignore_case: false,
         scope: Scope::Both,
         pattern: " ".to_string(),
     });
@@ -154,6 +159,8 @@ fn add_suffix_multiple_dots() {
 #[test]
 fn sequential_prefix() {
     let op = Operation::SequentialNumber(SequentialNumber {
+        step: 1,
+        separator: "_".to_string(),
         format_width: 3,
         start: 1,
         position: NumberPosition::Prefix,
@@ -165,6 +172,8 @@ fn sequential_prefix() {
 #[test]
 fn sequential_suffix() {
     let op = Operation::SequentialNumber(SequentialNumber {
+        step: 1,
+        separator: "_".to_string(),
         format_width: 2,
         start: 0,
         position: NumberPosition::Suffix,
@@ -176,6 +185,8 @@ fn sequential_suffix() {
 #[test]
 fn sequential_replace() {
     let op = Operation::SequentialNumber(SequentialNumber {
+        step: 1,
+        separator: "_".to_string(),
         format_width: 4,
         start: 1,
         position: NumberPosition::Replace,
@@ -253,6 +264,7 @@ fn slugify_preserves_non_latin_alphanumeric() {
 #[test]
 fn find_replace_empty_search_is_noop() {
     let op = Operation::FindReplace(FindReplace {
+        ignore_case: false,
         scope: Scope::Both,
         search: "".to_string(),
         replacement: "x".to_string(),
@@ -263,6 +275,8 @@ fn find_replace_empty_search_is_noop() {
 #[test]
 fn sequential_suffix_dotfile() {
     let op = Operation::SequentialNumber(SequentialNumber {
+        step: 1,
+        separator: "_".to_string(),
         format_width: 2,
         start: 1,
         position: NumberPosition::Suffix,
@@ -285,6 +299,7 @@ fn slugify_keeps_leading_dot_of_hidden_files() {
 #[test]
 fn find_replace_scope_name_leaves_extension_alone() {
     let op = Operation::FindReplace(FindReplace {
+        ignore_case: false,
         search: "e".to_string(),
         replacement: "x".to_string(),
         scope: Scope::Name,
@@ -295,6 +310,7 @@ fn find_replace_scope_name_leaves_extension_alone() {
 #[test]
 fn find_replace_scope_ext_changes_only_extension() {
     let op = Operation::FindReplace(FindReplace {
+        ignore_case: false,
         search: "jpeg".to_string(),
         replacement: "jpg".to_string(),
         scope: Scope::Ext,
@@ -316,6 +332,7 @@ fn regex_replace_scope_name() {
 #[test]
 fn remove_pattern_scope_ext() {
     let op = Operation::RemovePattern(RemovePattern {
+        ignore_case: false,
         pattern: "bak".to_string(),
         scope: Scope::Ext,
     });
@@ -570,4 +587,107 @@ fn truncate_counts_characters_not_bytes() {
         scope: Scope::Name,
     });
     assert_eq!(op.apply("日本語.txt"), "日本.txt");
+}
+
+// --- Ignore case ----------------------------------------------------------
+
+#[test]
+fn find_replace_ignore_case_matches_any_casing() {
+    let op = Operation::FindReplace(FindReplace {
+        search: "img".to_string(),
+        replacement: "photo".to_string(),
+        scope: Scope::Both,
+        ignore_case: true,
+    });
+    assert_eq!(op.apply("IMG_001.jpg"), "photo_001.jpg");
+    assert_eq!(op.apply("Img-Img.txt"), "photo-photo.txt");
+}
+
+#[test]
+fn find_replace_case_sensitive_by_default_flag() {
+    let op = Operation::FindReplace(FindReplace {
+        search: "img".to_string(),
+        replacement: "photo".to_string(),
+        scope: Scope::Both,
+        ignore_case: false,
+    });
+    assert_eq!(op.apply("IMG_001.jpg"), "IMG_001.jpg");
+}
+
+#[test]
+fn find_replace_ignore_case_treats_replacement_literally() {
+    let op = Operation::FindReplace(FindReplace {
+        search: "a.b".to_string(),
+        replacement: "$1".to_string(),
+        scope: Scope::Both,
+        ignore_case: true,
+    });
+    assert_eq!(op.apply("xA.By.txt"), "x$1y.txt");
+}
+
+#[test]
+fn remove_pattern_ignore_case() {
+    let op = Operation::RemovePattern(RemovePattern {
+        pattern: "copy of ".to_string(),
+        scope: Scope::Both,
+        ignore_case: true,
+    });
+    assert_eq!(op.apply("Copy Of report.pdf"), "report.pdf");
+}
+
+// --- Sequential step and separator ----------------------------------------
+
+#[test]
+fn sequential_number_with_step() {
+    let op = Operation::SequentialNumber(SequentialNumber {
+        format_width: 3,
+        start: 10,
+        step: 5,
+        separator: "_".to_string(),
+        position: NumberPosition::Prefix,
+    });
+    assert_eq!(op.apply_with_index("a.txt", 0), "010_a.txt");
+    assert_eq!(op.apply_with_index("a.txt", 2), "020_a.txt");
+}
+
+#[test]
+fn sequential_number_custom_separator() {
+    let prefix = Operation::SequentialNumber(SequentialNumber {
+        format_width: 2,
+        start: 1,
+        step: 1,
+        separator: "-".to_string(),
+        position: NumberPosition::Prefix,
+    });
+    assert_eq!(prefix.apply_with_index("a.txt", 0), "01-a.txt");
+
+    let suffix = Operation::SequentialNumber(SequentialNumber {
+        format_width: 2,
+        start: 1,
+        step: 1,
+        separator: " ".to_string(),
+        position: NumberPosition::Suffix,
+    });
+    assert_eq!(suffix.apply_with_index("a.txt", 0), "a 01.txt");
+
+    let none = Operation::SequentialNumber(SequentialNumber {
+        format_width: 2,
+        start: 1,
+        step: 1,
+        separator: String::new(),
+        position: NumberPosition::Prefix,
+    });
+    assert_eq!(none.apply_with_index("a.txt", 0), "01a.txt");
+}
+
+#[test]
+fn sequential_number_replace_ignores_separator() {
+    let op = Operation::SequentialNumber(SequentialNumber {
+        format_width: 2,
+        start: 1,
+        step: 1,
+        separator: "-".to_string(),
+        position: NumberPosition::Replace,
+    });
+    assert_eq!(op.apply_with_index("a.txt", 0), "01.txt");
 }

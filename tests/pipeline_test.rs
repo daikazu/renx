@@ -11,6 +11,7 @@ fn empty_pipeline_returns_original() {
 #[test]
 fn single_operation() {
     let ops = vec![Operation::FindReplace(FindReplace {
+        ignore_case: false,
         scope: Scope::Both,
         search: "IMG_".to_string(),
         replacement: "beach_".to_string(),
@@ -24,6 +25,7 @@ fn single_operation() {
 fn stacked_operations() {
     let ops = vec![
         Operation::FindReplace(FindReplace {
+            ignore_case: false,
             scope: Scope::Both,
             search: "IMG_".to_string(),
             replacement: "beach_".to_string(),
@@ -33,6 +35,8 @@ fn stacked_operations() {
             mode: CaseMode::Lower,
         }),
         Operation::SequentialNumber(SequentialNumber {
+            step: 1,
+            separator: "_".to_string(),
             format_width: 3,
             start: 1,
             position: NumberPosition::Prefix,
@@ -48,6 +52,7 @@ fn stacked_operations() {
 fn pipeline_preserves_order() {
     let ops = vec![
         Operation::FindReplace(FindReplace {
+            ignore_case: false,
             scope: Scope::Both,
             search: "old".to_string(),
             replacement: "new".to_string(),

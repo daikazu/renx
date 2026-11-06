@@ -106,6 +106,7 @@ mod editor_wiring {
                 search: "a".into(),
                 replacement: "b".into(),
                 scope: Scope::Name,
+                ignore_case: true,
             }),
             Operation::RegexReplace(RegexReplace {
                 pattern: r"\d+".into(),
@@ -115,6 +116,7 @@ mod editor_wiring {
             Operation::RemovePattern(RemovePattern {
                 pattern: "copy".into(),
                 scope: Scope::Name,
+                ignore_case: true,
             }),
             Operation::CaseChange(CaseChange {
                 mode: CaseMode::Kebab,
@@ -144,7 +146,9 @@ mod editor_wiring {
             Operation::SequentialNumber(SequentialNumber {
                 format_width: 4,
                 start: 7,
-                position: NumberPosition::Replace,
+                step: 3,
+                separator: "-".into(),
+                position: NumberPosition::Suffix,
             }),
             Operation::ZeroPad(ZeroPad {
                 width: 5,
@@ -223,8 +227,9 @@ mod editor_wiring {
         type_text(&mut app, "a");
         key(&mut app, KeyCode::Tab);
         type_text(&mut app, "b");
-        key(&mut app, KeyCode::Tab);
-        // Scope selector: default is "both"; walk left to "name"
+        key(&mut app, KeyCode::Tab); // Ignore case
+        key(&mut app, KeyCode::Tab); // Scope
+                                     // Scope selector: default is "both"; walk left to "name"
         for _ in 0..5 {
             key(&mut app, KeyCode::Left);
         }
