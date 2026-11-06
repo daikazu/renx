@@ -24,7 +24,8 @@ A terminal UI tool for bulk file renaming. Select files, stack operations, previ
   - Strip Accents (`café` becomes `cafe`)
 - **Scope** -- text operations can target the whole filename, just the name, or just the extension
 - **Natural sorting** -- `file2` lists before `file10`, and ordering ignores case
-- **Live preview** with conflict detection before any files are touched
+- **Live preview** with conflict detection before any files are touched; changed characters are highlighted
+- **Results screen** -- renames reveal one by one, then any key exits. Pass `--no-animation` for a static UI
 - **Wildcard filtering** (`*`, `?`) to narrow down the file list
 - **Glob and directory input** -- pass a directory, glob pattern, or let the shell expand it
 - **Recursive mode** (`-r`) to include subdirectories
@@ -63,6 +64,9 @@ renx '~/downloads/*.jpeg'
 
 # Recursive
 renx -r ~/projects
+
+# Static UI (no animations)
+renx --no-animation ~/downloads
 ```
 
 ## Keybindings
@@ -78,7 +82,7 @@ renx -r ~/projects
 | `e` | Edit operation |
 | `d` | Delete operation |
 | `J` / `K` | Reorder operations |
-| `x` | Execute rename |
+| `x` | Execute rename (then any key exits the results screen) |
 | `?` | Help overlay |
 | `q` | Quit |
 

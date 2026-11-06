@@ -6,6 +6,7 @@ use ratatui::{
     Frame,
 };
 
+use crate::anim::{self, diff_segments, EffectKind, PULSE_PERIOD};
 use crate::app::{App, InputMode, Panel};
 use crate::operations::OP_TYPES;
 
@@ -20,6 +21,48 @@ const TEXT_DIM: Color = Color::Rgb(100, 100, 120);
 const BG_BAR: Color = Color::Rgb(30, 30, 45);
 const BG_HIGHLIGHT: Color = Color::Rgb(45, 45, 65);
 const BORDER_INACTIVE: Color = Color::Rgb(55, 55, 75);
+const GREEN_DIM: Color = Color::Rgb(90, 140, 90);
+const RED_DIM: Color = Color::Rgb(150, 60, 60);
+const WHITE: Color = Color::Rgb(255, 255, 255);
+
+/// Blend two RGB colors; anything else falls back to `b` when `t >= 0.5`.
+fn lerp_color(a: Color, b: Color, t: f32) -> Color {
+    match (a, b) {
+        (Color::Rgb(r1, g1, b1), Color::Rgb(r2, g2, b2)) => Color::Rgb(
+            anim::lerp(r1 as f32, r2 as f32, t) as u8,
+            anim::lerp(g1 as f32, g2 as f32, t) as u8,
+            anim::lerp(b1 as f32, b2 as f32, t) as u8,
+        ),
+        _ => {
+            if t >= 0.5 {
+                b
+            } else {
+                a
+            }
+        }
+    }
+}
+
+/// Keep only the first `n` characters of a line, span styles intact.
+fn truncate_line(line: Line<'_>, n: usize) -> Line<'_> {
+    let mut remaining = n;
+    let mut spans = Vec::new();
+    for span in line.spans {
+        if remaining == 0 {
+            break;
+        }
+        let len = span.content.chars().count();
+        if len <= remaining {
+            remaining -= len;
+            spans.push(span);
+        } else {
+            let cut: String = span.content.chars().take(remaining).collect();
+            spans.push(Span::styled(cut, span.style));
+            remaining = 0;
+        }
+    }
+    Line::from(spans)
+}
 
 pub fn render(frame: &mut Frame, app: &mut App) {
     let area = frame.area();
@@ -39,22 +82,32 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         .constraints([Constraint::Percentage(55), Constraint::Percentage(45)])
         .areas(main_area);
 
-    render_top_bar(frame, app, top_bar);
-    render_file_panel(frame, app, files_area);
-    render_operation_stack(frame, app, ops_area);
-    render_preview(frame, app, preview_area);
-    render_bottom_bar(frame, app, bottom_bar);
+    // Startup draw-in: the bar types itself out and the panels land one by one.
+    let intro = app.intro_progress();
+    render_top_bar(frame, app, top_bar, intro);
+    if intro >= 0.15 {
+        render_file_panel(frame, app, files_area);
+    }
+    if intro >= 0.45 {
+        render_operation_stack(frame, app, ops_area);
+    }
+    if intro >= 0.7 {
+        render_preview(frame, app, preview_area);
+    }
+    if intro >= 0.9 {
+        render_bottom_bar(frame, app, bottom_bar);
+    }
 
     match app.input_mode {
         InputMode::SelectingOperationType => render_type_picker(frame, app, area),
         InputMode::EditingOperationParams => render_param_editor(frame, app, area),
         InputMode::ConfirmExecute => render_confirm(frame, app, area),
         InputMode::HelpOverlay => render_help(frame, area),
-        InputMode::Normal | InputMode::Filtering => {}
+        InputMode::Normal | InputMode::Filtering | InputMode::Done => {}
     }
 }
 
-fn render_top_bar(frame: &mut Frame, app: &App, area: Rect) {
+fn render_top_bar(frame: &mut Frame, app: &App, area: Rect, intro: f32) {
     let dir = app
         .files
         .first()
@@ -84,6 +137,15 @@ fn render_top_bar(frame: &mut Frame, app: &App, area: Rect) {
             Style::default().fg(GREEN),
         ),
     ]);
+    let text = if intro < 1.0 {
+        let total: usize = text.spans.iter().map(|s| s.content.chars().count()).sum();
+        truncate_line(
+            text,
+            (total as f32 * intro / 0.9).min(total as f32) as usize,
+        )
+    } else {
+        text
+    };
     let bar = Paragraph::new(text).style(Style::default().bg(BG_BAR));
     frame.render_widget(bar, area);
 }
@@ -160,7 +222,15 @@ fn render_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
             let selected = app.selected[actual_idx];
             let is_cursor = display_idx == app.file_cursor && (focused || is_filtering);
 
-            let check = if selected { "\u{25cf} " } else { "\u{25cb} " };
+            let base_color = if selected { GREEN } else { TEXT_DIM };
+            let (check, check_color) = match app.effect_progress(&EffectKind::FilePop(actual_idx)) {
+                // A toggled marker pops bright and settles into place
+                Some(p) => (
+                    if selected { "\u{25c9} " } else { "\u{25cc} " },
+                    lerp_color(WHITE, base_color, p),
+                ),
+                None => (if selected { "\u{25cf} " } else { "\u{25cb} " }, base_color),
+            };
             let cursor_marker = if is_cursor { "\u{25b8} " } else { "  " };
 
             let style = if is_cursor {
@@ -171,13 +241,11 @@ fn render_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
                 Style::default().fg(TEXT_DIM)
             };
 
-            let check_style = if selected { GREEN } else { TEXT_DIM };
-
             ListItem::new(Line::from(vec![
                 Span::styled(cursor_marker, style),
                 Span::styled(
                     check,
-                    Style::default().fg(check_style).bg(if is_cursor {
+                    Style::default().fg(check_color).bg(if is_cursor {
                         BG_HIGHLIGHT
                     } else {
                         Color::Reset
@@ -238,10 +306,17 @@ fn render_operation_stack(frame: &mut Frame, app: &App, area: Rect) {
             } else {
                 Style::default().fg(ACCENT_DIM)
             };
-            let text_style = if is_cursor {
+            let base = if is_cursor {
                 Style::default().fg(TEXT).bg(BG_HIGHLIGHT)
             } else {
                 Style::default().fg(YELLOW)
+            };
+            // A just-added or edited operation flashes white and fades back
+            let text_style = match app.effect_progress(&EffectKind::OpFlash(i)) {
+                Some(p) => base
+                    .fg(lerp_color(WHITE, base.fg.unwrap_or(YELLOW), p))
+                    .add_modifier(Modifier::BOLD),
+                None => base,
             };
             ListItem::new(Line::from(vec![
                 Span::styled(format!(" {}. ", i + 1), num_style),
@@ -255,6 +330,10 @@ fn render_operation_stack(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_preview(frame: &mut Frame, app: &mut App, area: Rect) {
+    if app.done.is_some() {
+        render_done(frame, app, area);
+        return;
+    }
     let focused = app.focused_panel == Panel::Preview;
     let (border_color, title_style) = if focused {
         (
@@ -329,23 +408,41 @@ fn render_preview(frame: &mut Frame, app: &mut App, area: Rect) {
             Style::default().fg(GREEN)
         };
 
+        // Rows that change get a slow pulse on the arrow, staggered per row
+        let pulse = if app.animate {
+            anim::pulse(app.tick + actual_idx as u64 * 3, PULSE_PERIOD)
+        } else {
+            1.0
+        };
         let arrow_style = if is_conflict {
-            Style::default().fg(RED)
+            Style::default().fg(lerp_color(RED_DIM, RED, pulse))
         } else if is_noop {
             Style::default().fg(BORDER_INACTIVE)
         } else {
-            Style::default().fg(ACCENT_DIM)
+            Style::default().fg(lerp_color(ACCENT_DIM, ACCENT, pulse))
         };
 
-        let line = Line::from(vec![
+        let mut spans = vec![
             Span::styled(
                 format!("  {:<width$}", old, width = max_old_len),
                 Style::default().fg(TEXT),
             ),
             Span::styled("  \u{2192}  ", arrow_style),
-            Span::styled(new.clone(), new_style),
-        ]);
-        lines.push(line);
+        ];
+        if is_conflict || is_noop {
+            spans.push(Span::styled(new.clone(), new_style));
+        } else {
+            // Light up only the characters that actually changed
+            for (segment, changed) in diff_segments(old, new) {
+                let style = if changed {
+                    Style::default().fg(GREEN).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(GREEN_DIM)
+                };
+                spans.push(Span::styled(segment, style));
+            }
+        }
+        lines.push(Line::from(spans));
     }
 
     if end < app.preview.len() {
@@ -357,6 +454,121 @@ fn render_preview(frame: &mut Frame, app: &mut App, area: Rect) {
 
     let preview_text = Paragraph::new(lines);
     frame.render_widget(preview_text, inner);
+}
+
+/// Results screen: rows flip to their new names in a cascade, then a banner.
+fn render_done(frame: &mut Frame, app: &App, area: Rect) {
+    let Some(done) = app.done.as_ref() else {
+        return;
+    };
+    let revealed = app.done_revealed();
+    let complete = done.complete(app.tick, app.animate);
+    let accent = if done.failed > 0 { YELLOW } else { GREEN };
+
+    let block = Block::default()
+        .title(Line::from(vec![
+            Span::styled(
+                " \u{2714} ",
+                Style::default().fg(accent).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "Renamed ",
+                Style::default().fg(accent).add_modifier(Modifier::BOLD),
+            ),
+        ]))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(accent));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let max_old_len = done
+        .rows
+        .iter()
+        .map(|r| r.old.len())
+        .max()
+        .unwrap_or(0)
+        .max(8);
+
+    let mut lines: Vec<Line> = vec![Line::from(vec![
+        Span::styled(
+            format!("  {:<width$}", "Original", width = max_old_len),
+            Style::default().fg(TEXT_DIM),
+        ),
+        Span::styled("  \u{2192}  ", Style::default().fg(BORDER_INACTIVE)),
+        Span::styled("Renamed", Style::default().fg(TEXT_DIM)),
+    ])];
+
+    // Header and banner take two lines; keep the newest revealed row in view
+    let visible = inner.height.saturating_sub(2) as usize;
+    let start = revealed
+        .saturating_sub(visible)
+        .min(done.rows.len().saturating_sub(visible));
+    let end = (start + visible).min(done.rows.len());
+
+    for (i, row) in done.rows.iter().enumerate().take(end).skip(start) {
+        let old_span = Span::styled(
+            format!("  {:<width$}", row.old, width = max_old_len),
+            Style::default().fg(TEXT),
+        );
+        let line = match app.done_row_glow(i) {
+            None => Line::from(vec![
+                old_span,
+                Span::styled("  \u{2026}  ", Style::default().fg(BORDER_INACTIVE)),
+            ]),
+            Some(glow) => {
+                let (color, mark) = if row.ok {
+                    (lerp_color(GREEN, WHITE, glow), "  \u{2714}")
+                } else {
+                    (RED, "  \u{2718} failed")
+                };
+                let mut new_style = Style::default().fg(color);
+                if glow > 0.0 {
+                    new_style = new_style.add_modifier(Modifier::BOLD);
+                }
+                Line::from(vec![
+                    old_span,
+                    Span::styled(
+                        "  \u{2192}  ",
+                        Style::default().fg(lerp_color(ACCENT_DIM, WHITE, glow)),
+                    ),
+                    Span::styled(row.new.clone(), new_style),
+                    Span::styled(mark, Style::default().fg(color)),
+                ])
+            }
+        };
+        lines.push(line);
+    }
+
+    // Banner on the last line of the panel
+    while lines.len() + 1 < inner.height as usize {
+        lines.push(Line::from(""));
+    }
+    let banner = if complete {
+        let summary = if done.failed == 0 {
+            format!("  \u{2714} Renamed {} files", done.success)
+        } else {
+            format!("  Renamed {}, {} failed", done.success, done.failed)
+        };
+        Line::from(vec![
+            Span::styled(
+                summary,
+                Style::default().fg(accent).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled("   press any key to exit", Style::default().fg(TEXT_DIM)),
+        ])
+    } else {
+        let spinner = ["\u{25d0}", "\u{25d3}", "\u{25d1}", "\u{25d2}"][(app.tick / 2 % 4) as usize];
+        Line::from(vec![
+            Span::styled(
+                format!("  {} renaming", spinner),
+                Style::default().fg(accent),
+            ),
+            Span::styled("   any key skips", Style::default().fg(TEXT_DIM)),
+        ])
+    };
+    lines.push(banner);
+
+    frame.render_widget(Paragraph::new(lines), inner);
 }
 
 fn render_bottom_bar(frame: &mut Frame, app: &App, area: Rect) {

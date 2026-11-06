@@ -1,3 +1,4 @@
+use crate::anim::{DoneState, Effect, EffectKind, FILE_POP_TICKS, INTRO_TICKS};
 use crate::files::{self, FileEntry};
 use crate::operations::Operation;
 use crate::pipeline::Pipeline;
@@ -19,6 +20,8 @@ pub enum InputMode {
     EditingOperationParams,
     ConfirmExecute,
     HelpOverlay,
+    /// Results screen after renaming; any key skips the cascade, then exits.
+    Done,
 }
 
 /// The full application state.
@@ -71,6 +74,14 @@ pub struct App {
     pub file_list_height: usize,
     /// Visible height of the preview panel (set by UI each frame).
     pub preview_height: usize,
+    /// Animation frame counter, advanced by `tick()`.
+    pub tick: u64,
+    /// Whether animations run at all (`--no-animation` turns them off).
+    pub animate: bool,
+    /// Short-lived visual effects currently playing.
+    pub effects: Vec<Effect>,
+    /// Results screen state once renames have run.
+    pub done: Option<DoneState>,
 }
 
 impl App {
@@ -102,6 +113,10 @@ impl App {
             filtered_indices,
             file_list_height: 20,
             preview_height: 10,
+            tick: 0,
+            animate: false,
+            effects: Vec::new(),
+            done: None,
         };
         app.update_preview();
         app
@@ -207,6 +222,7 @@ impl App {
     pub fn toggle_file_selection(&mut self) {
         if let Some(actual_idx) = self.actual_file_index() {
             self.selected[actual_idx] = !self.selected[actual_idx];
+            self.add_effect(EffectKind::FilePop(actual_idx), FILE_POP_TICKS);
             self.update_preview();
         }
     }
@@ -293,6 +309,82 @@ impl App {
             }
         }
         conflicts
+    }
+
+    // --- Animation -------------------------------------------------------
+
+    /// Advance one animation frame and drop finished effects.
+    pub fn tick(&mut self) {
+        self.tick += 1;
+        let now = self.tick;
+        self.effects.retain(|e| e.progress(now).is_some());
+    }
+
+    /// Start an effect (replacing any running effect of the same kind).
+    /// Does nothing when animation is off.
+    pub fn add_effect(&mut self, kind: EffectKind, duration: u64) {
+        if !self.animate {
+            return;
+        }
+        self.effects.retain(|e| e.kind != kind);
+        self.effects.push(Effect {
+            kind,
+            started: self.tick,
+            duration,
+        });
+    }
+
+    /// Progress of a running effect in `0.0..1.0`, if it is running.
+    pub fn effect_progress(&self, kind: &EffectKind) -> Option<f32> {
+        self.effects
+            .iter()
+            .find(|e| &e.kind == kind)
+            .and_then(|e| e.progress(self.tick))
+    }
+
+    /// Startup draw-in progress, `1.0` once finished or when animation is off.
+    pub fn intro_progress(&self) -> f32 {
+        if !self.animate {
+            1.0
+        } else {
+            (self.tick as f32 / INTRO_TICKS as f32).min(1.0)
+        }
+    }
+
+    /// Whether any preview row would actually change its name.
+    pub fn preview_has_changes(&self) -> bool {
+        self.preview
+            .iter()
+            .any(|(idx, new)| self.files[*idx].file_name != *new)
+    }
+
+    /// Rows of the results screen currently showing their new name.
+    pub fn done_revealed(&self) -> usize {
+        self.done
+            .as_ref()
+            .map(|d| d.revealed(self.tick, self.animate))
+            .unwrap_or(0)
+    }
+
+    /// Brightness of a results row, `None` until it is revealed.
+    pub fn done_row_glow(&self, i: usize) -> Option<f32> {
+        self.done
+            .as_ref()
+            .and_then(|d| d.row_glow(i, self.tick, self.animate))
+    }
+
+    /// Whether the event loop should wake up on a timer to redraw.
+    pub fn needs_tick(&self) -> bool {
+        if !self.animate {
+            return false;
+        }
+        if self.intro_progress() < 1.0 || !self.effects.is_empty() {
+            return true;
+        }
+        match &self.done {
+            Some(d) => !d.complete(self.tick, self.animate),
+            None => self.preview_has_changes(),
+        }
     }
 
     /// Whether execution is blocked (conflicts exist).

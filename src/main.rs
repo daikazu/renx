@@ -1,9 +1,11 @@
 use std::io;
 use std::path::Path;
+use std::time::Duration;
 
 use clap::Parser;
 use crossterm::event::{self, Event, KeyEventKind};
 
+use renx::anim::TICK_MS;
 use renx::app::App;
 use renx::files;
 use renx::input;
@@ -20,6 +22,10 @@ struct Args {
     /// Recurse into subdirectories
     #[arg(short, long)]
     recursive: bool,
+
+    /// Disable animations (useful for slow terminals or screen readers)
+    #[arg(long)]
+    no_animation: bool,
 }
 
 fn main() -> io::Result<()> {
@@ -33,6 +39,7 @@ fn main() -> io::Result<()> {
     }
 
     let mut app = App::new(file_list);
+    app.animate = !args.no_animation;
 
     if let Some(f) = filter {
         app.filter_text = f;
@@ -204,13 +211,23 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> io::Result<()>
     loop {
         terminal.draw(|frame| ui::render(frame, app))?;
 
-        if let Event::Key(key) = event::read()? {
-            if key.kind == KeyEventKind::Press {
-                input::handle_key(app, key);
-                if app.should_quit {
-                    return Ok(());
+        // Wake on a timer only while something is animating; otherwise block
+        // on input so an idle renx costs nothing.
+        let timeout = if app.needs_tick() {
+            Duration::from_millis(TICK_MS)
+        } else {
+            Duration::from_secs(3600)
+        };
+        if event::poll(timeout)? {
+            if let Event::Key(key) = event::read()? {
+                if key.kind == KeyEventKind::Press {
+                    input::handle_key(app, key);
+                    if app.should_quit {
+                        return Ok(());
+                    }
                 }
             }
         }
+        app.tick();
     }
 }

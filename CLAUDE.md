@@ -30,9 +30,10 @@ cargo fmt -- --check         # check formatting
 - **`files.rs`** - `FileEntry` (file_name + parent_dir), discovery via `discover_dir` and `discover_glob` (sorted with `natural_cmp`), `same_file` identity check for case-insensitive filesystems, and `rename_file` for actual fs rename.
 - **`input.rs`** - Key event dispatch, branching on `InputMode`. Normal mode handles panel navigation and file/operation actions; popup modes handle text input and type selection.
 - **`ui.rs`** - Ratatui rendering. Three-panel horizontal layout (files, operations, preview) with top status bar and bottom help bar. Popup overlays for operation type picker and parameter editor.
-- **`main.rs`** - CLI args via clap, arg resolution (directory vs glob vs shell-expanded), tilde expansion, filter inference from shell-expanded filenames.
+- **`anim.rs`** - Animation timing: tick constants, `Effect`/`EffectKind` (op flash, file pop), `DoneState` for the post-rename cascade, `diff_segments` for change highlighting, `pulse`/`lerp`. Pure logic, no rendering.
+- **`main.rs`** - CLI args via clap (`--no-animation` sets `app.animate = false`), arg resolution (directory vs glob vs shell-expanded), tilde expansion, filter inference from shell-expanded filenames. The event loop polls with a `TICK_MS` timeout only while `App::needs_tick()` is true, otherwise blocks on input.
 
-**Data flow**: User adds operations -> `App::update_preview()` builds a `Pipeline` and applies it to selected files -> preview panel shows old->new mappings -> `find_conflicts()` checks for duplicates/empty/invalid names -> execute calls `files::rename_file` for each.
+**Data flow**: User adds operations -> `App::update_preview()` builds a `Pipeline` and applies it to selected files -> preview panel shows old->new mappings -> `find_conflicts()` checks for duplicates/empty/invalid names -> execute calls `files::rename_file` for each -> `InputMode::Done` shows the results cascade; the first key skips the cascade, the next sets `should_quit`.
 
 ## Key Patterns
 
@@ -40,4 +41,5 @@ cargo fmt -- --check         # check formatting
 - Conflict detection compares files by identity (`files::same_file`), not path text, so case-only renames on macOS are not conflicts.
 - Filter uses wildcard matching (`*`/`?`) with a DP-based `wildcard_match` function in `app.rs`.
 - Preview is recalculated on every operation/selection change via `update_preview()`.
+- Animations: `App::tick()` advances `app.tick`; effects and the cascade are pure functions of `tick`, so tests drive them by calling `tick()` directly. `App::new` starts with `animate = false`; tests opt in.
 - Tests use `tempfile` crate for filesystem operations in `tests/`.

@@ -1,5 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
+use crate::anim::{DoneRow, DoneState, EffectKind, OP_FLASH_TICKS};
 use crate::app::{App, InputMode, Panel};
 use crate::operations::*;
 
@@ -9,6 +10,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         InputMode::Normal => handle_normal_mode(app, key),
         InputMode::Filtering => handle_filter_mode(app, key),
         InputMode::SelectingOperationType => handle_type_picker(app, key),
+        InputMode::Done => handle_done(app, key),
         InputMode::EditingOperationParams => handle_param_editor(app, key),
         InputMode::ConfirmExecute => handle_confirm(app, key),
         InputMode::HelpOverlay => handle_help(app, key),
@@ -231,6 +233,19 @@ fn handle_confirm(app: &mut App, key: KeyEvent) {
     }
 }
 
+/// Results screen: the first key skips a running cascade, the next one exits.
+fn handle_done(app: &mut App, _key: KeyEvent) {
+    let Some(done) = app.done.as_mut() else {
+        app.should_quit = true;
+        return;
+    };
+    if done.revealed(app.tick, app.animate) < done.rows.len() {
+        done.skipped_at = Some(app.tick);
+    } else {
+        app.should_quit = true;
+    }
+}
+
 fn handle_type_picker(app: &mut App, key: KeyEvent) {
     match key.code {
         KeyCode::Esc => {
@@ -298,12 +313,18 @@ fn handle_param_editor(app: &mut App, key: KeyEvent) {
                 return;
             }
             if let Some(op) = build_operation_from_fields(app) {
-                if let Some(idx) = app.editing_op_index {
-                    app.operations[idx] = op;
-                } else {
-                    app.operations.push(op);
-                    app.op_cursor = app.operations.len() - 1;
-                }
+                let idx = match app.editing_op_index {
+                    Some(idx) => {
+                        app.operations[idx] = op;
+                        idx
+                    }
+                    None => {
+                        app.operations.push(op);
+                        app.operations.len() - 1
+                    }
+                };
+                app.op_cursor = idx;
+                app.add_effect(EffectKind::OpFlash(idx), OP_FLASH_TICKS);
                 app.update_preview();
             }
             app.input_mode = InputMode::Normal;
@@ -672,6 +693,8 @@ fn execute_renames(app: &mut App) {
         return;
     }
 
+    let mut failed_idx: std::collections::HashSet<usize> = std::collections::HashSet::new();
+
     // Phase 1: Move all sources to temp names
     let mut temp_mappings: Vec<(usize, String, String)> = Vec::new(); // (file_idx, temp_name, final_name)
     for (file_idx, new_name) in &renames {
@@ -682,6 +705,7 @@ fn execute_renames(app: &mut App) {
                 temp_mappings.push((*file_idx, temp_name, new_name.clone()));
             }
             Err(e) => {
+                failed_idx.insert(*file_idx);
                 failures.push(format!("{}: {}", entry.file_name, e));
             }
         }
@@ -699,6 +723,7 @@ fn execute_renames(app: &mut App) {
         if target_path.exists() {
             // Rollback: move temp back to original
             let _ = crate::files::rename_file(&temp_entry, &entry.file_name);
+            failed_idx.insert(*file_idx);
             failures.push(format!(
                 "{}: target '{}' already exists",
                 entry.file_name, final_name
@@ -710,6 +735,7 @@ fn execute_renames(app: &mut App) {
             Err(e) => {
                 // Try to rollback
                 let _ = crate::files::rename_file(&temp_entry, &entry.file_name);
+                failed_idx.insert(*file_idx);
                 failures.push(format!("{}: {}", entry.file_name, e));
             }
         }
@@ -725,6 +751,15 @@ fn execute_renames(app: &mut App) {
             failures.join(", ")
         );
     }
+    let rows: Vec<DoneRow> = renames
+        .iter()
+        .map(|(file_idx, new_name)| DoneRow {
+            old: app.files[*file_idx].file_name.clone(),
+            new: new_name.clone(),
+            ok: !failed_idx.contains(file_idx),
+        })
+        .collect();
+    app.done = Some(DoneState::new(rows, app.tick));
+    app.input_mode = InputMode::Done;
     app.executed = true;
-    app.should_quit = true;
 }
