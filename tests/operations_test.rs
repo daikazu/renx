@@ -1,11 +1,12 @@
 use renx::operations::{
     AddPrefix, AddSuffix, CaseChange, CaseMode, FindReplace, NumberPosition, Operation,
-    RegexReplace, RemovePattern, SequentialNumber, Slugify,
+    RegexReplace, RemovePattern, Scope, SequentialNumber, Slugify, StripDiacritics,
 };
 
 #[test]
 fn find_replace_basic() {
     let op = Operation::FindReplace(FindReplace {
+        scope: Scope::Both,
         search: "IMG_".to_string(),
         replacement: "vacation_".to_string(),
     });
@@ -15,6 +16,7 @@ fn find_replace_basic() {
 #[test]
 fn find_replace_multiple_occurrences() {
     let op = Operation::FindReplace(FindReplace {
+        scope: Scope::Both,
         search: "a".to_string(),
         replacement: "b".to_string(),
     });
@@ -24,6 +26,7 @@ fn find_replace_multiple_occurrences() {
 #[test]
 fn find_replace_no_match() {
     let op = Operation::FindReplace(FindReplace {
+        scope: Scope::Both,
         search: "xyz".to_string(),
         replacement: "abc".to_string(),
     });
@@ -33,6 +36,7 @@ fn find_replace_no_match() {
 #[test]
 fn remove_pattern_basic() {
     let op = Operation::RemovePattern(RemovePattern {
+        scope: Scope::Both,
         pattern: "copy of ".to_string(),
     });
     assert_eq!(op.apply("copy of document.txt"), "document.txt");
@@ -41,6 +45,7 @@ fn remove_pattern_basic() {
 #[test]
 fn remove_pattern_multiple() {
     let op = Operation::RemovePattern(RemovePattern {
+        scope: Scope::Both,
         pattern: " ".to_string(),
     });
     assert_eq!(op.apply("my cool file.txt"), "mycoolfile.txt");
@@ -49,6 +54,7 @@ fn remove_pattern_multiple() {
 #[test]
 fn regex_replace_capture_groups() {
     let op = Operation::RegexReplace(RegexReplace {
+        scope: Scope::Both,
         pattern: r"(\d+)_(\w+)".to_string(),
         replacement: "${2}_${1}".to_string(),
     });
@@ -58,6 +64,7 @@ fn regex_replace_capture_groups() {
 #[test]
 fn regex_replace_simple_pattern() {
     let op = Operation::RegexReplace(RegexReplace {
+        scope: Scope::Both,
         pattern: r"\d+".to_string(),
         replacement: "NUM".to_string(),
     });
@@ -67,6 +74,7 @@ fn regex_replace_simple_pattern() {
 #[test]
 fn regex_replace_no_match() {
     let op = Operation::RegexReplace(RegexReplace {
+        scope: Scope::Both,
         pattern: r"\d+".to_string(),
         replacement: "NUM".to_string(),
     });
@@ -76,6 +84,7 @@ fn regex_replace_no_match() {
 #[test]
 fn regex_replace_invalid_pattern_returns_original() {
     let op = Operation::RegexReplace(RegexReplace {
+        scope: Scope::Both,
         pattern: r"[invalid".to_string(),
         replacement: "x".to_string(),
     });
@@ -85,6 +94,7 @@ fn regex_replace_invalid_pattern_returns_original() {
 #[test]
 fn case_change_lowercase() {
     let op = Operation::CaseChange(CaseChange {
+        scope: Scope::Both,
         mode: CaseMode::Lower,
     });
     assert_eq!(op.apply("MY_FILE.TXT"), "my_file.txt");
@@ -93,6 +103,7 @@ fn case_change_lowercase() {
 #[test]
 fn case_change_uppercase() {
     let op = Operation::CaseChange(CaseChange {
+        scope: Scope::Both,
         mode: CaseMode::Upper,
     });
     assert_eq!(op.apply("my_file.txt"), "MY_FILE.TXT");
@@ -101,6 +112,7 @@ fn case_change_uppercase() {
 #[test]
 fn case_change_title() {
     let op = Operation::CaseChange(CaseChange {
+        scope: Scope::Both,
         mode: CaseMode::Title,
     });
     assert_eq!(op.apply("hello world.txt"), "Hello World.txt");
@@ -222,6 +234,7 @@ fn add_suffix_dotfile() {
 #[test]
 fn case_change_title_preserves_extension() {
     let op = Operation::CaseChange(CaseChange {
+        scope: Scope::Both,
         mode: CaseMode::Title,
     });
     assert_eq!(op.apply("hello world.txt"), "Hello World.txt");
@@ -229,16 +242,17 @@ fn case_change_title_preserves_extension() {
 }
 
 #[test]
-fn slugify_preserves_non_ascii_alphanumeric() {
+fn slugify_preserves_non_latin_alphanumeric() {
     let op = Operation::Slugify(Slugify {
         separator: "-".to_string(),
     });
-    assert_eq!(op.apply("café photo.jpg"), "café-photo.jpg");
+    assert_eq!(op.apply("日本 photo.jpg"), "日本-photo.jpg");
 }
 
 #[test]
 fn find_replace_empty_search_is_noop() {
     let op = Operation::FindReplace(FindReplace {
+        scope: Scope::Both,
         search: "".to_string(),
         replacement: "x".to_string(),
     });
@@ -263,4 +277,125 @@ fn slugify_keeps_leading_dot_of_hidden_files() {
     assert_eq!(op.apply(".bashrc"), ".bashrc");
     assert_eq!(op.apply(".env.local"), ".env.local");
     assert_eq!(op.apply(".My Config.JSON"), ".my-config.json");
+}
+
+// --- Scope -------------------------------------------------------------
+
+#[test]
+fn find_replace_scope_name_leaves_extension_alone() {
+    let op = Operation::FindReplace(FindReplace {
+        search: "e".to_string(),
+        replacement: "x".to_string(),
+        scope: Scope::Name,
+    });
+    assert_eq!(op.apply("file.jpeg"), "filx.jpeg");
+}
+
+#[test]
+fn find_replace_scope_ext_changes_only_extension() {
+    let op = Operation::FindReplace(FindReplace {
+        search: "jpeg".to_string(),
+        replacement: "jpg".to_string(),
+        scope: Scope::Ext,
+    });
+    assert_eq!(op.apply("jpeg.jpeg"), "jpeg.jpg");
+    assert_eq!(op.apply("noext"), "noext");
+}
+
+#[test]
+fn regex_replace_scope_name() {
+    let op = Operation::RegexReplace(RegexReplace {
+        pattern: r"\d+".to_string(),
+        replacement: "N".to_string(),
+        scope: Scope::Name,
+    });
+    assert_eq!(op.apply("img123.mp4"), "imgN.mp4");
+}
+
+#[test]
+fn remove_pattern_scope_ext() {
+    let op = Operation::RemovePattern(RemovePattern {
+        pattern: "bak".to_string(),
+        scope: Scope::Ext,
+    });
+    assert_eq!(op.apply("notes.bak.txtbak"), "notes.bak.txt");
+}
+
+#[test]
+fn case_change_lower_scope_name_keeps_extension_case() {
+    let op = Operation::CaseChange(CaseChange {
+        mode: CaseMode::Lower,
+        scope: Scope::Name,
+    });
+    assert_eq!(op.apply("Photo.JPG"), "photo.JPG");
+}
+
+#[test]
+fn case_change_upper_scope_ext() {
+    let op = Operation::CaseChange(CaseChange {
+        mode: CaseMode::Upper,
+        scope: Scope::Ext,
+    });
+    assert_eq!(op.apply("Photo.jpg"), "Photo.JPG");
+}
+
+// --- New case modes ----------------------------------------------------
+
+#[test]
+fn case_change_snake() {
+    let op = Operation::CaseChange(CaseChange {
+        mode: CaseMode::Snake,
+        scope: Scope::Both,
+    });
+    assert_eq!(op.apply("My File-Name v2.TXT"), "my_file_name_v2.txt");
+    assert_eq!(op.apply("myFileName.txt"), "my_file_name.txt");
+}
+
+#[test]
+fn case_change_kebab() {
+    let op = Operation::CaseChange(CaseChange {
+        mode: CaseMode::Kebab,
+        scope: Scope::Both,
+    });
+    assert_eq!(op.apply("My File_Name v2.TXT"), "my-file-name-v2.txt");
+}
+
+#[test]
+fn case_change_camel() {
+    let op = Operation::CaseChange(CaseChange {
+        mode: CaseMode::Camel,
+        scope: Scope::Both,
+    });
+    assert_eq!(op.apply("my file-name v2.txt"), "myFileNameV2.txt");
+}
+
+#[test]
+fn case_change_sentence() {
+    let op = Operation::CaseChange(CaseChange {
+        mode: CaseMode::Sentence,
+        scope: Scope::Both,
+    });
+    assert_eq!(op.apply("hello_WORLD again.TXT"), "Hello_world again.txt");
+}
+
+// --- Strip diacritics / slugify transliteration -------------------------
+
+#[test]
+fn strip_diacritics_removes_accents() {
+    let op = Operation::StripDiacritics(StripDiacritics { scope: Scope::Both });
+    assert_eq!(op.apply("Café Ångström.TXT"), "Cafe Angstrom.TXT");
+}
+
+#[test]
+fn strip_diacritics_scope_name() {
+    let op = Operation::StripDiacritics(StripDiacritics { scope: Scope::Name });
+    assert_eq!(op.apply("résumé.tèxt"), "resume.tèxt");
+}
+
+#[test]
+fn slugify_transliterates_accents() {
+    let op = Operation::Slugify(Slugify {
+        separator: "-".to_string(),
+    });
+    assert_eq!(op.apply("Café Résumé.PDF"), "cafe-resume.pdf");
 }

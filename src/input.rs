@@ -416,10 +416,12 @@ fn build_operation_from_fields(app: &App) -> Option<Operation> {
     let fields = &app.popup_fields;
     match app.popup_type_cursor {
         0 => Some(Operation::FindReplace(FindReplace {
+            scope: Scope::Both,
             search: fields.first()?.clone(),
             replacement: fields.get(1)?.clone(),
         })),
         1 => Some(Operation::RegexReplace(RegexReplace {
+            scope: Scope::Both,
             pattern: fields.first()?.clone(),
             replacement: fields.get(1)?.clone(),
         })),
@@ -443,7 +445,10 @@ fn build_operation_from_fields(app: &App) -> Option<Operation> {
                 "title" => CaseMode::Title,
                 _ => CaseMode::Lower,
             };
-            Some(Operation::CaseChange(CaseChange { mode }))
+            Some(Operation::CaseChange(CaseChange {
+                scope: Scope::Both,
+                mode,
+            }))
         }
         4 => Some(Operation::AddPrefix(AddPrefix {
             prefix: fields.first()?.clone(),
@@ -452,6 +457,7 @@ fn build_operation_from_fields(app: &App) -> Option<Operation> {
             suffix: fields.first()?.clone(),
         })),
         6 => Some(Operation::RemovePattern(RemovePattern {
+            scope: Scope::Both,
             pattern: fields.first()?.clone(),
         })),
         7 => {
@@ -541,6 +547,7 @@ fn start_editing_operation(app: &mut App) {
         Operation::AddSuffix(_) => 5,
         Operation::RemovePattern(_) => 6,
         Operation::Slugify(_) => 7,
+        Operation::StripDiacritics(_) => 8,
     };
     app.popup_type_cursor = type_idx;
     setup_fields_for_type(app);
@@ -569,6 +576,10 @@ fn start_editing_operation(app: &mut App) {
                 CaseMode::Lower => 0,
                 CaseMode::Upper => 1,
                 CaseMode::Title => 2,
+                CaseMode::Sentence => 3,
+                CaseMode::Snake => 4,
+                CaseMode::Kebab => 5,
+                CaseMode::Camel => 6,
             };
         }
         Operation::AddPrefix(o) => {
@@ -587,6 +598,7 @@ fn start_editing_operation(app: &mut App) {
                 _ => 0,
             };
         }
+        Operation::StripDiacritics(_) => {}
     }
 
     // Set text cursors to end of each pre-filled value
