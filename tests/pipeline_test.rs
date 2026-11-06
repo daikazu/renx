@@ -60,3 +60,65 @@ fn pipeline_preserves_order() {
     let results = pipeline.apply(&["old_file.txt".to_string()]);
     assert_eq!(results, vec!["v2_new_file.txt"]);
 }
+
+#[test]
+fn insert_date_uses_file_modified_time() {
+    use renx::files::FileEntry;
+    use renx::operations::{DateSource, InsertDate, NumberPosition};
+    use std::fs;
+    use std::time::{Duration, UNIX_EPOCH};
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("photo.jpg");
+    fs::write(&path, "x").unwrap();
+    // 2024-03-15 12:00:00 UTC: the same calendar day in every time zone
+    let file = fs::File::options().write(true).open(&path).unwrap();
+    file.set_modified(UNIX_EPOCH + Duration::from_secs(1_710_504_000))
+        .unwrap();
+    drop(file);
+
+    let entry = FileEntry {
+        file_name: "photo.jpg".to_string(),
+        parent_dir: dir.path().to_path_buf(),
+    };
+
+    let prefix = Pipeline::new(vec![Operation::InsertDate(InsertDate {
+        source: DateSource::Modified,
+        format: "%Y-%m-%d".to_string(),
+        position: NumberPosition::Prefix,
+    })]);
+    assert_eq!(
+        prefix.apply_entries(&[entry.clone()]),
+        vec!["2024-03-15_photo.jpg"]
+    );
+
+    let suffix = Pipeline::new(vec![Operation::InsertDate(InsertDate {
+        source: DateSource::Modified,
+        format: "%Y%m%d".to_string(),
+        position: NumberPosition::Suffix,
+    })]);
+    assert_eq!(
+        suffix.apply_entries(&[entry.clone()]),
+        vec!["photo_20240315.jpg"]
+    );
+
+    let replace = Pipeline::new(vec![Operation::InsertDate(InsertDate {
+        source: DateSource::Modified,
+        format: "%Y".to_string(),
+        position: NumberPosition::Replace,
+    })]);
+    assert_eq!(replace.apply_entries(&[entry]), vec!["2024.jpg"]);
+}
+
+#[test]
+fn insert_date_without_file_leaves_name_unchanged() {
+    use renx::operations::{DateSource, InsertDate, NumberPosition};
+
+    let op = Operation::InsertDate(InsertDate {
+        source: DateSource::Created,
+        format: "%Y-%m-%d".to_string(),
+        position: NumberPosition::Prefix,
+    });
+    // Plain apply has no file to read metadata from
+    assert_eq!(op.apply("photo.jpg"), "photo.jpg");
+}

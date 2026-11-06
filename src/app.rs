@@ -163,8 +163,11 @@ impl App {
             .filter(|&&i| self.selected[i])
             .map(|&i| (i, self.files[i].file_name.clone()))
             .collect();
-        let old_names: Vec<String> = selected.iter().map(|(_, n)| n.clone()).collect();
-        let new_names = pipeline.apply(&old_names);
+        let entries: Vec<FileEntry> = selected
+            .iter()
+            .map(|(idx, _)| self.files[*idx].clone())
+            .collect();
+        let new_names = pipeline.apply_entries(&entries);
         self.preview = selected
             .iter()
             .map(|(idx, _)| *idx)

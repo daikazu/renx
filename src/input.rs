@@ -548,6 +548,12 @@ fn start_editing_operation(app: &mut App) {
         Operation::RemovePattern(_) => 6,
         Operation::Slugify(_) => 7,
         Operation::StripDiacritics(_) => 8,
+        Operation::ChangeExtension(_) => 9,
+        Operation::Trim(_) => 10,
+        Operation::Insert(_) => 11,
+        Operation::ZeroPad(_) => 12,
+        Operation::Truncate(_) => 13,
+        Operation::InsertDate(_) => 14,
     };
     app.popup_type_cursor = type_idx;
     setup_fields_for_type(app);
@@ -598,7 +604,13 @@ fn start_editing_operation(app: &mut App) {
                 _ => 0,
             };
         }
-        Operation::StripDiacritics(_) => {}
+        Operation::StripDiacritics(_)
+        | Operation::ChangeExtension(_)
+        | Operation::Trim(_)
+        | Operation::Insert(_)
+        | Operation::ZeroPad(_)
+        | Operation::Truncate(_)
+        | Operation::InsertDate(_) => {}
     }
 
     // Set text cursors to end of each pre-filled value

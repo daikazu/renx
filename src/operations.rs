@@ -1,4 +1,7 @@
+use chrono::{DateTime, Local};
 use regex::Regex;
+use std::fmt::Write as _;
+use std::path::Path;
 use unicode_normalization::char::is_combining_mark;
 use unicode_normalization::UnicodeNormalization;
 
@@ -119,11 +122,42 @@ pub enum Operation {
     SequentialNumber(SequentialNumber),
     Slugify(Slugify),
     StripDiacritics(StripDiacritics),
+    ChangeExtension(ChangeExtension),
+    Trim(Trim),
+    Insert(Insert),
+    ZeroPad(ZeroPad),
+    Truncate(Truncate),
+    InsertDate(InsertDate),
+}
+
+/// Per-file context for operations that need more than the name itself.
+pub struct OpContext<'a> {
+    /// Position of the file among the files being renamed (for numbering).
+    pub index: usize,
+    /// Path of the file on disk, when known (for metadata such as dates).
+    pub path: Option<&'a Path>,
 }
 
 impl Operation {
     /// Apply this operation to a filename, returning the transformed name.
     pub fn apply(&self, filename: &str) -> String {
+        self.apply_in_context(
+            filename,
+            &OpContext {
+                index: 0,
+                path: None,
+            },
+        )
+    }
+
+    /// Apply with a file index (used by SequentialNumber).
+    /// Non-sequential operations ignore the index.
+    pub fn apply_with_index(&self, filename: &str, index: usize) -> String {
+        self.apply_in_context(filename, &OpContext { index, path: None })
+    }
+
+    /// Apply with full per-file context.
+    pub fn apply_in_context(&self, filename: &str, ctx: &OpContext) -> String {
         match self {
             Operation::FindReplace(op) => op.apply(filename),
             Operation::RemovePattern(op) => op.apply(filename),
@@ -131,19 +165,15 @@ impl Operation {
             Operation::CaseChange(op) => op.apply(filename),
             Operation::AddPrefix(op) => op.apply(filename),
             Operation::AddSuffix(op) => op.apply(filename),
-            Operation::SequentialNumber(op) => op.apply(filename, 0),
+            Operation::SequentialNumber(op) => op.apply(filename, ctx.index),
             Operation::Slugify(op) => op.apply(filename),
             Operation::StripDiacritics(op) => op.apply(filename),
-        }
-    }
-
-    /// Apply with a file index (used by SequentialNumber).
-    /// Non-sequential operations ignore the index.
-    pub fn apply_with_index(&self, filename: &str, index: usize) -> String {
-        match self {
-            Operation::SequentialNumber(op) => op.apply(filename, index),
-            Operation::Slugify(op) => op.apply(filename),
-            other => other.apply(filename),
+            Operation::ChangeExtension(op) => op.apply(filename),
+            Operation::Trim(op) => op.apply(filename),
+            Operation::Insert(op) => op.apply(filename),
+            Operation::ZeroPad(op) => op.apply(filename),
+            Operation::Truncate(op) => op.apply(filename),
+            Operation::InsertDate(op) => op.apply(filename, ctx.path),
         }
     }
 
@@ -192,6 +222,41 @@ impl Operation {
                 format!("Slugify ({})", sep)
             }
             Operation::StripDiacritics(op) => format!("Strip accents{}", op.scope.suffix()),
+            Operation::ChangeExtension(op) => {
+                let ext = op.extension.trim_start_matches('.');
+                if ext.is_empty() {
+                    "Remove extension".to_string()
+                } else {
+                    format!("Extension → .{}", ext)
+                }
+            }
+            Operation::Trim(op) => format!(
+                "Trim {} from {}{}",
+                op.count,
+                op.from.label(),
+                op.scope.suffix()
+            ),
+            Operation::Insert(op) => format!(
+                "Insert \"{}\" at {} from {}{}",
+                op.text,
+                op.position,
+                op.from.label(),
+                op.scope.suffix()
+            ),
+            Operation::ZeroPad(op) => {
+                format!("Zero-pad numbers to {}{}", op.width, op.scope.suffix())
+            }
+            Operation::Truncate(op) => {
+                format!("Truncate to {} chars{}", op.max_len, op.scope.suffix())
+            }
+            Operation::InsertDate(op) => {
+                let pos = match op.position {
+                    NumberPosition::Prefix => "prefix",
+                    NumberPosition::Suffix => "suffix",
+                    NumberPosition::Replace => "replace",
+                };
+                format!("Date {} ({}, {})", op.format, op.source.label(), pos)
+            }
         }
     }
 }
@@ -487,4 +552,211 @@ impl StripDiacritics {
     fn apply(&self, filename: &str) -> String {
         apply_scoped(filename, &self.scope, strip_diacritics)
     }
+}
+
+/// Which end of the text an operation counts from.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Side {
+    Start,
+    End,
+}
+
+impl Side {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Side::Start => "start",
+            Side::End => "end",
+        }
+    }
+
+    pub fn from_label(label: &str) -> Side {
+        match label {
+            "end" => Side::End,
+            _ => Side::Start,
+        }
+    }
+}
+
+/// Replace, add or remove the extension. An empty extension removes it;
+/// a leading dot is optional.
+#[derive(Clone, Debug)]
+pub struct ChangeExtension {
+    pub extension: String,
+}
+
+impl ChangeExtension {
+    fn apply(&self, filename: &str) -> String {
+        let (stem, _) = split_ext(filename);
+        let ext = self.extension.trim_start_matches('.');
+        if ext.is_empty() {
+            stem.to_string()
+        } else {
+            format!("{}.{}", stem, ext)
+        }
+    }
+}
+
+/// Remove a number of characters from the start or end.
+#[derive(Clone, Debug)]
+pub struct Trim {
+    pub count: u32,
+    pub from: Side,
+    pub scope: Scope,
+}
+
+impl Trim {
+    fn apply(&self, filename: &str) -> String {
+        apply_scoped(filename, &self.scope, |s| {
+            let chars: Vec<char> = s.chars().collect();
+            let keep = chars.len().saturating_sub(self.count as usize);
+            match self.from {
+                Side::Start => chars[chars.len() - keep..].iter().collect(),
+                Side::End => chars[..keep].iter().collect(),
+            }
+        })
+    }
+}
+
+/// Insert text at a character position counted from the start or end.
+#[derive(Clone, Debug)]
+pub struct Insert {
+    pub text: String,
+    pub position: u32,
+    pub from: Side,
+    pub scope: Scope,
+}
+
+impl Insert {
+    fn apply(&self, filename: &str) -> String {
+        apply_scoped(filename, &self.scope, |s| {
+            let chars: Vec<char> = s.chars().collect();
+            let offset = (self.position as usize).min(chars.len());
+            let at = match self.from {
+                Side::Start => offset,
+                Side::End => chars.len() - offset,
+            };
+            let mut out: String = chars[..at].iter().collect();
+            out.push_str(&self.text);
+            out.extend(&chars[at..]);
+            out
+        })
+    }
+}
+
+/// Pad every run of digits with leading zeros to at least `width` digits.
+#[derive(Clone, Debug)]
+pub struct ZeroPad {
+    pub width: u32,
+    pub scope: Scope,
+}
+
+impl ZeroPad {
+    fn apply(&self, filename: &str) -> String {
+        apply_scoped(filename, &self.scope, |s| {
+            let mut out = String::new();
+            let mut run = String::new();
+            let flush = |run: &mut String, out: &mut String| {
+                if !run.is_empty() {
+                    for _ in run.len()..self.width as usize {
+                        out.push('0');
+                    }
+                    out.push_str(run);
+                    run.clear();
+                }
+            };
+            for c in s.chars() {
+                if c.is_ascii_digit() {
+                    run.push(c);
+                } else {
+                    flush(&mut run, &mut out);
+                    out.push(c);
+                }
+            }
+            flush(&mut run, &mut out);
+            out
+        })
+    }
+}
+
+/// Cut the text down to at most `max_len` characters.
+#[derive(Clone, Debug)]
+pub struct Truncate {
+    pub max_len: u32,
+    pub scope: Scope,
+}
+
+impl Truncate {
+    fn apply(&self, filename: &str) -> String {
+        apply_scoped(filename, &self.scope, |s| {
+            s.chars().take(self.max_len as usize).collect()
+        })
+    }
+}
+
+/// Which file timestamp to use for InsertDate.
+#[derive(Clone, Debug, PartialEq)]
+pub enum DateSource {
+    Modified,
+    Created,
+}
+
+impl DateSource {
+    pub fn label(&self) -> &'static str {
+        match self {
+            DateSource::Modified => "modified",
+            DateSource::Created => "created",
+        }
+    }
+
+    pub fn from_label(label: &str) -> DateSource {
+        match label {
+            "created" => DateSource::Created,
+            _ => DateSource::Modified,
+        }
+    }
+}
+
+/// Insert a date taken from the file's metadata, formatted with a strftime
+/// pattern such as `%Y-%m-%d`. Leaves the name unchanged when the file's
+/// timestamp cannot be read.
+#[derive(Clone, Debug)]
+pub struct InsertDate {
+    pub source: DateSource,
+    pub format: String,
+    pub position: NumberPosition,
+}
+
+impl InsertDate {
+    fn apply(&self, filename: &str, path: Option<&Path>) -> String {
+        let Some(formatted) = path.and_then(|p| self.formatted_date(p)) else {
+            return filename.to_string();
+        };
+        let (stem, ext) = split_ext(filename);
+        match self.position {
+            NumberPosition::Prefix => format!("{}_{}", formatted, filename),
+            NumberPosition::Suffix => format!("{}_{}{}", stem, formatted, ext),
+            NumberPosition::Replace => format!("{}{}", formatted, ext),
+        }
+    }
+
+    fn formatted_date(&self, path: &Path) -> Option<String> {
+        let meta = std::fs::metadata(path).ok()?;
+        let time = match self.source {
+            DateSource::Modified => meta.modified().ok()?,
+            DateSource::Created => meta.created().or_else(|_| meta.modified()).ok()?,
+        };
+        let date: DateTime<Local> = time.into();
+        let mut out = String::new();
+        // An invalid strftime pattern makes the formatter fail; treat it as unreadable.
+        write!(out, "{}", date.format(&self.format)).ok()?;
+        Some(out)
+    }
+}
+
+/// Check a strftime format string by formatting the current time with it.
+pub fn validate_date_format(format: &str) -> Result<(), String> {
+    let mut out = String::new();
+    write!(out, "{}", Local::now().format(format))
+        .map(|_| ())
+        .map_err(|_| format!("Invalid date format: {}", format))
 }

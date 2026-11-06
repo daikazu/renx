@@ -1,6 +1,7 @@
 use renx::operations::{
-    AddPrefix, AddSuffix, CaseChange, CaseMode, FindReplace, NumberPosition, Operation,
-    RegexReplace, RemovePattern, Scope, SequentialNumber, Slugify, StripDiacritics,
+    AddPrefix, AddSuffix, CaseChange, CaseMode, ChangeExtension, FindReplace, Insert,
+    NumberPosition, Operation, RegexReplace, RemovePattern, Scope, SequentialNumber, Side, Slugify,
+    StripDiacritics, Trim, Truncate, ZeroPad,
 };
 
 #[test]
@@ -398,4 +399,175 @@ fn slugify_transliterates_accents() {
         separator: "-".to_string(),
     });
     assert_eq!(op.apply("Café Résumé.PDF"), "cafe-resume.pdf");
+}
+
+// --- Change Extension ---------------------------------------------------
+
+#[test]
+fn change_extension_replaces_existing() {
+    let op = Operation::ChangeExtension(ChangeExtension {
+        extension: "jpg".to_string(),
+    });
+    assert_eq!(op.apply("photo.jpeg"), "photo.jpg");
+}
+
+#[test]
+fn change_extension_accepts_leading_dot() {
+    let op = Operation::ChangeExtension(ChangeExtension {
+        extension: ".png".to_string(),
+    });
+    assert_eq!(op.apply("photo.jpeg"), "photo.png");
+}
+
+#[test]
+fn change_extension_adds_when_missing() {
+    let op = Operation::ChangeExtension(ChangeExtension {
+        extension: "txt".to_string(),
+    });
+    assert_eq!(op.apply("README"), "README.txt");
+    assert_eq!(op.apply(".bashrc"), ".bashrc.txt");
+}
+
+#[test]
+fn change_extension_empty_strips() {
+    let op = Operation::ChangeExtension(ChangeExtension {
+        extension: String::new(),
+    });
+    assert_eq!(op.apply("archive.tar.gz"), "archive.tar");
+    assert_eq!(op.apply("noext"), "noext");
+}
+
+// --- Trim ---------------------------------------------------------------
+
+#[test]
+fn trim_from_start_of_name() {
+    let op = Operation::Trim(Trim {
+        count: 4,
+        from: Side::Start,
+        scope: Scope::Name,
+    });
+    assert_eq!(op.apply("IMG_0001.jpg"), "0001.jpg");
+}
+
+#[test]
+fn trim_from_end_of_name() {
+    let op = Operation::Trim(Trim {
+        count: 5,
+        from: Side::End,
+        scope: Scope::Name,
+    });
+    assert_eq!(op.apply("report_copy.pdf"), "report.pdf");
+}
+
+#[test]
+fn trim_more_than_length_gives_empty_stem() {
+    let op = Operation::Trim(Trim {
+        count: 99,
+        from: Side::Start,
+        scope: Scope::Name,
+    });
+    assert_eq!(op.apply("abc.txt"), ".txt");
+}
+
+#[test]
+fn trim_counts_characters_not_bytes() {
+    let op = Operation::Trim(Trim {
+        count: 2,
+        from: Side::Start,
+        scope: Scope::Name,
+    });
+    assert_eq!(op.apply("éàbc.txt"), "bc.txt");
+}
+
+// --- Insert -------------------------------------------------------------
+
+#[test]
+fn insert_at_position_from_start() {
+    let op = Operation::Insert(Insert {
+        text: "-".to_string(),
+        position: 4,
+        from: Side::Start,
+        scope: Scope::Name,
+    });
+    assert_eq!(op.apply("20240315_photo.jpg"), "2024-0315_photo.jpg");
+}
+
+#[test]
+fn insert_at_position_from_end() {
+    let op = Operation::Insert(Insert {
+        text: "_v2".to_string(),
+        position: 0,
+        from: Side::End,
+        scope: Scope::Name,
+    });
+    assert_eq!(op.apply("report.pdf"), "report_v2.pdf");
+}
+
+#[test]
+fn insert_beyond_length_appends() {
+    let op = Operation::Insert(Insert {
+        text: "X".to_string(),
+        position: 50,
+        from: Side::Start,
+        scope: Scope::Name,
+    });
+    assert_eq!(op.apply("abc.txt"), "abcX.txt");
+}
+
+// --- Zero-pad -----------------------------------------------------------
+
+#[test]
+fn zero_pad_pads_every_number_run() {
+    let op = Operation::ZeroPad(ZeroPad {
+        width: 2,
+        scope: Scope::Name,
+    });
+    assert_eq!(op.apply("track 3 of 12.mp3"), "track 03 of 12.mp3");
+}
+
+#[test]
+fn zero_pad_leaves_longer_numbers_alone() {
+    let op = Operation::ZeroPad(ZeroPad {
+        width: 3,
+        scope: Scope::Name,
+    });
+    assert_eq!(op.apply("ep7-part1234.mkv"), "ep007-part1234.mkv");
+}
+
+#[test]
+fn zero_pad_scope_both_touches_extension_digits() {
+    let op = Operation::ZeroPad(ZeroPad {
+        width: 2,
+        scope: Scope::Both,
+    });
+    assert_eq!(op.apply("a1.r1"), "a01.r01");
+}
+
+// --- Truncate -----------------------------------------------------------
+
+#[test]
+fn truncate_limits_name_length() {
+    let op = Operation::Truncate(Truncate {
+        max_len: 6,
+        scope: Scope::Name,
+    });
+    assert_eq!(op.apply("a_very_long_name.txt"), "a_very.txt");
+}
+
+#[test]
+fn truncate_shorter_name_unchanged() {
+    let op = Operation::Truncate(Truncate {
+        max_len: 20,
+        scope: Scope::Name,
+    });
+    assert_eq!(op.apply("short.txt"), "short.txt");
+}
+
+#[test]
+fn truncate_counts_characters_not_bytes() {
+    let op = Operation::Truncate(Truncate {
+        max_len: 2,
+        scope: Scope::Name,
+    });
+    assert_eq!(op.apply("日本語.txt"), "日本.txt");
 }
