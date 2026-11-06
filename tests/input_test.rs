@@ -58,3 +58,28 @@ fn popup_multibyte_insert_and_delete() {
     field.insert(byte_pos, 'ü');
     assert_eq!(field, "cüaf");
 }
+
+#[test]
+fn invalid_regex_is_rejected_with_message() {
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use renx::app::{App, InputMode};
+    use renx::input::handle_key;
+
+    let mut app = App::new(vec![]);
+    app.input_mode = InputMode::EditingOperationParams;
+    app.popup_type_cursor = 1; // Regex Replace
+    app.popup_fields = vec!["[0-9".to_string(), "x".to_string()];
+    app.popup_field_options = vec![None, None];
+    app.popup_field_selections = vec![0, 0];
+    app.popup_text_cursors = vec![4, 1];
+
+    handle_key(&mut app, KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+    assert!(app.operations.is_empty(), "invalid regex must not be added");
+    assert_eq!(app.input_mode, InputMode::EditingOperationParams);
+    assert!(
+        app.status_message.contains("Invalid regex"),
+        "status: {}",
+        app.status_message
+    );
+}

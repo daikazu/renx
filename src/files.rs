@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -17,6 +18,53 @@ impl FileEntry {
     }
 }
 
+/// Compare two names the way a human would: case-insensitively, with runs of
+/// digits compared by numeric value so `file2` sorts before `file10`.
+/// Ties are broken by plain byte order so the result is deterministic.
+pub fn natural_cmp(a: &str, b: &str) -> Ordering {
+    let mut ia = a.chars().peekable();
+    let mut ib = b.chars().peekable();
+    loop {
+        match (ia.peek().copied(), ib.peek().copied()) {
+            (None, None) => return a.cmp(b),
+            (None, Some(_)) => return Ordering::Less,
+            (Some(_), None) => return Ordering::Greater,
+            (Some(ca), Some(cb)) if ca.is_ascii_digit() && cb.is_ascii_digit() => {
+                let na = take_digits(&mut ia);
+                let nb = take_digits(&mut ib);
+                let ta = na.trim_start_matches('0');
+                let tb = nb.trim_start_matches('0');
+                let ord = ta.len().cmp(&tb.len()).then_with(|| ta.cmp(tb));
+                if ord != Ordering::Equal {
+                    return ord;
+                }
+            }
+            (Some(ca), Some(cb)) => {
+                ia.next();
+                ib.next();
+                let la = ca.to_lowercase().next().unwrap_or(ca);
+                let lb = cb.to_lowercase().next().unwrap_or(cb);
+                if la != lb {
+                    return la.cmp(&lb);
+                }
+            }
+        }
+    }
+}
+
+fn take_digits(it: &mut std::iter::Peekable<std::str::Chars>) -> String {
+    let mut out = String::new();
+    while let Some(c) = it.peek() {
+        if c.is_ascii_digit() {
+            out.push(*c);
+            it.next();
+        } else {
+            break;
+        }
+    }
+    out
+}
+
 /// Discover all files (not directories) in a directory.
 pub fn discover_dir(path: &Path) -> io::Result<Vec<FileEntry>> {
     let mut entries = Vec::new();
@@ -31,7 +79,7 @@ pub fn discover_dir(path: &Path) -> io::Result<Vec<FileEntry>> {
             }
         }
     }
-    entries.sort_by(|a, b| a.file_name.cmp(&b.file_name));
+    entries.sort_by(|a, b| natural_cmp(&a.file_name, &b.file_name));
     Ok(entries)
 }
 
@@ -53,7 +101,7 @@ pub fn discover_glob(pattern: &str) -> io::Result<Vec<FileEntry>> {
             }
         }
     }
-    entries.sort_by(|a, b| a.file_name.cmp(&b.file_name));
+    entries.sort_by(|a, b| natural_cmp(&a.file_name, &b.file_name));
     Ok(entries)
 }
 

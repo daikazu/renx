@@ -47,3 +47,43 @@ fn rename_file_on_disk() {
         "content"
     );
 }
+
+#[test]
+fn discover_dir_sorts_naturally_and_case_insensitively() {
+    let dir = tempfile::tempdir().unwrap();
+    for name in [
+        "file10.txt",
+        "file2.txt",
+        "File1.txt",
+        "Zebra.txt",
+        "apple.txt",
+    ] {
+        fs::write(dir.path().join(name), "").unwrap();
+    }
+
+    let files = files::discover_dir(dir.path()).unwrap();
+    let names: Vec<&str> = files.iter().map(|f| f.file_name.as_str()).collect();
+    assert_eq!(
+        names,
+        vec![
+            "apple.txt",
+            "File1.txt",
+            "file2.txt",
+            "file10.txt",
+            "Zebra.txt"
+        ]
+    );
+}
+
+#[test]
+fn discover_glob_sorts_naturally() {
+    let dir = tempfile::tempdir().unwrap();
+    for name in ["img10.jpg", "img9.jpg", "img100.jpg"] {
+        fs::write(dir.path().join(name), "").unwrap();
+    }
+
+    let pattern = dir.path().join("*.jpg").to_string_lossy().to_string();
+    let files = files::discover_glob(&pattern).unwrap();
+    let names: Vec<&str> = files.iter().map(|f| f.file_name.as_str()).collect();
+    assert_eq!(names, vec!["img9.jpg", "img10.jpg", "img100.jpg"]);
+}

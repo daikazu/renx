@@ -213,10 +213,15 @@ pub struct Slugify {
 
 impl Slugify {
     fn apply(&self, filename: &str) -> String {
+        // A leading dot marks a hidden file; keep it and slugify the rest.
+        let (hidden, name) = match filename.strip_prefix('.') {
+            Some(rest) => (".", rest),
+            None => ("", filename),
+        };
         // Split stem and extension
-        let (stem, ext) = match filename.rfind('.') {
-            Some(dot_pos) => (&filename[..dot_pos], &filename[dot_pos..]),
-            None => (filename, ""),
+        let (stem, ext) = match name.rfind('.') {
+            Some(dot_pos) => (&name[..dot_pos], &name[dot_pos..]),
+            None => (name, ""),
         };
 
         // Lowercase, replace non-alphanumeric with separator, collapse, trim
@@ -251,7 +256,7 @@ impl Slugify {
             result.pop();
         }
 
-        format!("{}{}", result, ext.to_lowercase())
+        format!("{}{}{}", hidden, result, ext.to_lowercase())
     }
 }
 

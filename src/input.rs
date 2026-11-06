@@ -292,6 +292,15 @@ fn handle_param_editor(app: &mut App, key: KeyEvent) {
                     }
                 }
             }
+            // Regex Replace: refuse an invalid pattern and keep the editor open
+            if app.popup_type_cursor == 1 {
+                if let Some(pattern) = app.popup_fields.first() {
+                    if let Err(e) = regex::Regex::new(pattern) {
+                        app.status_message = format!("Invalid regex: {}", e);
+                        return;
+                    }
+                }
+            }
             if let Some(op) = build_operation_from_fields(app) {
                 if let Some(idx) = app.editing_op_index {
                     app.operations[idx] = op;

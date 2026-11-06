@@ -254,3 +254,13 @@ fn sequential_suffix_dotfile() {
     });
     assert_eq!(op.apply_with_index(".gitignore", 0), ".gitignore_01");
 }
+
+#[test]
+fn slugify_keeps_leading_dot_of_hidden_files() {
+    let op = Operation::Slugify(Slugify {
+        separator: "-".to_string(),
+    });
+    assert_eq!(op.apply(".bashrc"), ".bashrc");
+    assert_eq!(op.apply(".env.local"), ".env.local");
+    assert_eq!(op.apply(".My Config.JSON"), ".my-config.json");
+}

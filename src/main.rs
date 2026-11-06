@@ -189,7 +189,12 @@ fn load_files(dir: &str, recursive: bool) -> io::Result<Vec<files::FileEntry>> {
         files::discover_dir(path)?
     };
 
-    all_files.sort_by_key(|a| a.full_path());
+    all_files.sort_by(|a, b| {
+        files::natural_cmp(
+            &a.full_path().to_string_lossy(),
+            &b.full_path().to_string_lossy(),
+        )
+    });
     all_files.dedup_by(|a, b| a.full_path() == b.full_path());
 
     Ok(all_files)
