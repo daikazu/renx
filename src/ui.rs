@@ -7,6 +7,7 @@ use ratatui::{
 };
 
 use crate::app::{App, InputMode, Panel};
+use crate::operations::OP_TYPES;
 
 // Color palette
 const ACCENT: Color = Color::Rgb(114, 137, 218); // soft blue-purple
@@ -510,7 +511,8 @@ fn render_confirm(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_type_picker(frame: &mut Frame, app: &App, area: Rect) {
-    let popup = centered_rect(40, 13, area);
+    let height = (OP_TYPES.len() as u16 + 2).min(area.height);
+    let popup = centered_rect(40, height, area);
     frame.render_widget(Clear, popup);
 
     let block = Block::default()
@@ -521,21 +523,11 @@ fn render_type_picker(frame: &mut Frame, app: &App, area: Rect) {
         .borders(Borders::ALL)
         .border_style(Style::default().fg(ACCENT));
 
-    let types = [
-        "Find & Replace",
-        "Regex Replace",
-        "Sequential Number",
-        "Case Change",
-        "Add Prefix",
-        "Add Suffix",
-        "Remove Pattern",
-        "Slugify",
-    ];
-
-    let items: Vec<ListItem> = types
+    let items: Vec<ListItem> = OP_TYPES
         .iter()
         .enumerate()
-        .map(|(i, name)| {
+        .map(|(i, spec)| {
+            let name = spec.name;
             let style = if i == app.popup_type_cursor {
                 Style::default()
                     .fg(ACCENT)
@@ -700,17 +692,10 @@ fn render_param_editor(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn get_field_labels(app: &App) -> Vec<&'static str> {
-    match app.popup_type_cursor {
-        0 => vec!["Search:", "Replace with:"],
-        1 => vec!["Regex pattern:", "Replace with:"],
-        2 => vec!["Width (e.g. 3):", "Start number:", "Position:"],
-        3 => vec!["Mode:"],
-        4 => vec!["Prefix:"],
-        5 => vec!["Suffix:"],
-        6 => vec!["Pattern to remove:"],
-        7 => vec!["Separator:"],
-        _ => vec![],
-    }
+    OP_TYPES
+        .get(app.popup_type_cursor)
+        .map(|spec| spec.fields.iter().map(|f| f.label).collect())
+        .unwrap_or_default()
 }
 
 fn render_help(frame: &mut Frame, area: Rect) {

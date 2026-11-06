@@ -760,3 +760,182 @@ pub fn validate_date_format(format: &str) -> Result<(), String> {
         .map(|_| ())
         .map_err(|_| format!("Invalid date format: {}", format))
 }
+
+// --- Operation type registry (drives the picker and parameter editor) ----
+
+/// One parameter field in the editor popup.
+pub struct FieldSpec {
+    pub label: &'static str,
+    /// `Some` makes this a left/right selector over fixed options.
+    pub options: Option<&'static [&'static str]>,
+    /// Initial text for a text field, or the initially selected option label.
+    pub default: &'static str,
+}
+
+/// One entry in the "Add Operation" picker.
+pub struct OpTypeSpec {
+    pub name: &'static str,
+    pub fields: &'static [FieldSpec],
+}
+
+const fn text(label: &'static str, default: &'static str) -> FieldSpec {
+    FieldSpec {
+        label,
+        options: None,
+        default,
+    }
+}
+
+const fn choice(
+    label: &'static str,
+    options: &'static [&'static str],
+    default: &'static str,
+) -> FieldSpec {
+    FieldSpec {
+        label,
+        options: Some(options),
+        default,
+    }
+}
+
+const SCOPES: &[&str] = &["name", "ext", "both"];
+const SIDES: &[&str] = &["start", "end"];
+const POSITIONS: &[&str] = &["prefix", "suffix", "replace"];
+const CASE_MODES: &[&str] = &[
+    "lower", "upper", "title", "sentence", "snake", "kebab", "camel",
+];
+const DATE_SOURCES: &[&str] = &["modified", "created"];
+
+pub const T_FIND_REPLACE: usize = 0;
+pub const T_REGEX_REPLACE: usize = 1;
+pub const T_REMOVE_PATTERN: usize = 2;
+pub const T_CASE_CHANGE: usize = 3;
+pub const T_ADD_PREFIX: usize = 4;
+pub const T_ADD_SUFFIX: usize = 5;
+pub const T_INSERT: usize = 6;
+pub const T_TRIM: usize = 7;
+pub const T_TRUNCATE: usize = 8;
+pub const T_SEQUENTIAL: usize = 9;
+pub const T_ZERO_PAD: usize = 10;
+pub const T_INSERT_DATE: usize = 11;
+pub const T_CHANGE_EXT: usize = 12;
+pub const T_SLUGIFY: usize = 13;
+pub const T_STRIP_DIACRITICS: usize = 14;
+
+/// Every operation type in picker order. Indices match the `T_*` constants.
+pub const OP_TYPES: &[OpTypeSpec] = &[
+    OpTypeSpec {
+        name: "Find & Replace",
+        fields: &[
+            text("Search:", ""),
+            text("Replace with:", ""),
+            choice("Scope:", SCOPES, "both"),
+        ],
+    },
+    OpTypeSpec {
+        name: "Regex Replace",
+        fields: &[
+            text("Regex pattern:", ""),
+            text("Replace with:", ""),
+            choice("Scope:", SCOPES, "both"),
+        ],
+    },
+    OpTypeSpec {
+        name: "Remove Pattern",
+        fields: &[
+            text("Pattern to remove:", ""),
+            choice("Scope:", SCOPES, "both"),
+        ],
+    },
+    OpTypeSpec {
+        name: "Case Change",
+        fields: &[
+            choice("Mode:", CASE_MODES, "lower"),
+            choice("Scope:", SCOPES, "both"),
+        ],
+    },
+    OpTypeSpec {
+        name: "Add Prefix",
+        fields: &[text("Prefix:", "")],
+    },
+    OpTypeSpec {
+        name: "Add Suffix",
+        fields: &[text("Suffix:", "")],
+    },
+    OpTypeSpec {
+        name: "Insert Text",
+        fields: &[
+            text("Text:", ""),
+            text("Position:", "0"),
+            choice("From:", SIDES, "start"),
+            choice("Scope:", SCOPES, "name"),
+        ],
+    },
+    OpTypeSpec {
+        name: "Trim Characters",
+        fields: &[
+            text("Count:", "1"),
+            choice("From:", SIDES, "start"),
+            choice("Scope:", SCOPES, "name"),
+        ],
+    },
+    OpTypeSpec {
+        name: "Truncate",
+        fields: &[text("Max length:", "32"), choice("Scope:", SCOPES, "name")],
+    },
+    OpTypeSpec {
+        name: "Sequential Number",
+        fields: &[
+            text("Width (e.g. 3):", "3"),
+            text("Start number:", "1"),
+            choice("Position:", POSITIONS, "prefix"),
+        ],
+    },
+    OpTypeSpec {
+        name: "Zero-pad Numbers",
+        fields: &[text("Width:", "2"), choice("Scope:", SCOPES, "name")],
+    },
+    OpTypeSpec {
+        name: "Insert Date",
+        fields: &[
+            choice("Source:", DATE_SOURCES, "modified"),
+            text("Format (strftime):", "%Y-%m-%d"),
+            choice("Position:", POSITIONS, "prefix"),
+        ],
+    },
+    OpTypeSpec {
+        name: "Change Extension",
+        fields: &[text("New extension (blank removes):", "")],
+    },
+    OpTypeSpec {
+        name: "Slugify",
+        fields: &[choice("Separator:", &["-", "_", "."], "-")],
+    },
+    OpTypeSpec {
+        name: "Strip Accents",
+        fields: &[choice("Scope:", SCOPES, "both")],
+    },
+];
+
+impl Operation {
+    /// Index of this operation's type in [`OP_TYPES`].
+    pub fn type_index(&self) -> usize {
+        match self {
+            Operation::FindReplace(_) => T_FIND_REPLACE,
+            Operation::RegexReplace(_) => T_REGEX_REPLACE,
+            Operation::RemovePattern(_) => T_REMOVE_PATTERN,
+            Operation::CaseChange(_) => T_CASE_CHANGE,
+            Operation::AddPrefix(_) => T_ADD_PREFIX,
+            Operation::AddSuffix(_) => T_ADD_SUFFIX,
+            Operation::Insert(_) => T_INSERT,
+            Operation::Trim(_) => T_TRIM,
+            Operation::Truncate(_) => T_TRUNCATE,
+            Operation::SequentialNumber(_) => T_SEQUENTIAL,
+            Operation::ZeroPad(_) => T_ZERO_PAD,
+            Operation::InsertDate(_) => T_INSERT_DATE,
+            Operation::ChangeExtension(_) => T_CHANGE_EXT,
+            Operation::Slugify(_) => T_SLUGIFY,
+            Operation::StripDiacritics(_) => T_STRIP_DIACRITICS,
+        }
+    }
+}

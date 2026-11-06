@@ -237,7 +237,7 @@ fn handle_type_picker(app: &mut App, key: KeyEvent) {
             app.input_mode = InputMode::Normal;
         }
         KeyCode::Char('j') | KeyCode::Down => {
-            if app.popup_type_cursor < 7 {
+            if app.popup_type_cursor + 1 < OP_TYPES.len() {
                 app.popup_type_cursor += 1;
             }
         }
@@ -292,14 +292,10 @@ fn handle_param_editor(app: &mut App, key: KeyEvent) {
                     }
                 }
             }
-            // Regex Replace: refuse an invalid pattern and keep the editor open
-            if app.popup_type_cursor == 1 {
-                if let Some(pattern) = app.popup_fields.first() {
-                    if let Err(e) = regex::Regex::new(pattern) {
-                        app.status_message = format!("Invalid regex: {}", e);
-                        return;
-                    }
-                }
+            // Refuse unusable parameters and keep the editor open
+            if let Err(msg) = validate_fields(app) {
+                app.status_message = msg;
+                return;
             }
             if let Some(op) = build_operation_from_fields(app) {
                 if let Some(idx) = app.editing_op_index {
@@ -412,213 +408,232 @@ fn handle_help(app: &mut App, key: KeyEvent) {
     }
 }
 
-fn build_operation_from_fields(app: &App) -> Option<Operation> {
-    let fields = &app.popup_fields;
+fn field(app: &App, i: usize) -> String {
+    app.popup_fields.get(i).cloned().unwrap_or_default()
+}
+
+fn number(app: &App, i: usize, default: u32) -> u32 {
+    field(app, i).trim().parse().unwrap_or(default)
+}
+
+/// Check the editor's fields before building an operation from them.
+fn validate_fields(app: &App) -> Result<(), String> {
     match app.popup_type_cursor {
-        0 => Some(Operation::FindReplace(FindReplace {
-            scope: Scope::Both,
-            search: fields.first()?.clone(),
-            replacement: fields.get(1)?.clone(),
-        })),
-        1 => Some(Operation::RegexReplace(RegexReplace {
-            scope: Scope::Both,
-            pattern: fields.first()?.clone(),
-            replacement: fields.get(1)?.clone(),
-        })),
-        2 => {
-            let width: u32 = fields.first()?.parse().unwrap_or(3);
-            let start: u32 = fields.get(1)?.parse().unwrap_or(1);
-            let position = match fields.get(2)?.as_str() {
+        T_REGEX_REPLACE => regex::Regex::new(&field(app, 0))
+            .map(|_| ())
+            .map_err(|e| format!("Invalid regex: {}", e)),
+        T_INSERT_DATE => validate_date_format(&field(app, 1)),
+        _ => Ok(()),
+    }
+}
+
+fn build_operation_from_fields(app: &App) -> Option<Operation> {
+    let op = match app.popup_type_cursor {
+        T_FIND_REPLACE => Operation::FindReplace(FindReplace {
+            search: field(app, 0),
+            replacement: field(app, 1),
+            scope: Scope::from_label(&field(app, 2)),
+        }),
+        T_REGEX_REPLACE => Operation::RegexReplace(RegexReplace {
+            pattern: field(app, 0),
+            replacement: field(app, 1),
+            scope: Scope::from_label(&field(app, 2)),
+        }),
+        T_REMOVE_PATTERN => Operation::RemovePattern(RemovePattern {
+            pattern: field(app, 0),
+            scope: Scope::from_label(&field(app, 1)),
+        }),
+        T_CASE_CHANGE => Operation::CaseChange(CaseChange {
+            mode: CaseMode::from_label(&field(app, 0)),
+            scope: Scope::from_label(&field(app, 1)),
+        }),
+        T_ADD_PREFIX => Operation::AddPrefix(AddPrefix {
+            prefix: field(app, 0),
+        }),
+        T_ADD_SUFFIX => Operation::AddSuffix(AddSuffix {
+            suffix: field(app, 0),
+        }),
+        T_INSERT => Operation::Insert(Insert {
+            text: field(app, 0),
+            position: number(app, 1, 0),
+            from: Side::from_label(&field(app, 2)),
+            scope: Scope::from_label(&field(app, 3)),
+        }),
+        T_TRIM => Operation::Trim(Trim {
+            count: number(app, 0, 1),
+            from: Side::from_label(&field(app, 1)),
+            scope: Scope::from_label(&field(app, 2)),
+        }),
+        T_TRUNCATE => Operation::Truncate(Truncate {
+            max_len: number(app, 0, 32),
+            scope: Scope::from_label(&field(app, 1)),
+        }),
+        T_SEQUENTIAL => Operation::SequentialNumber(SequentialNumber {
+            format_width: number(app, 0, 3),
+            start: number(app, 1, 1),
+            position: match field(app, 2).as_str() {
                 "suffix" => NumberPosition::Suffix,
                 "replace" => NumberPosition::Replace,
                 _ => NumberPosition::Prefix,
-            };
-            Some(Operation::SequentialNumber(SequentialNumber {
-                format_width: width,
-                start,
-                position,
-            }))
-        }
-        3 => {
-            let mode = match fields.first()?.as_str() {
-                "upper" => CaseMode::Upper,
-                "title" => CaseMode::Title,
-                _ => CaseMode::Lower,
-            };
-            Some(Operation::CaseChange(CaseChange {
-                scope: Scope::Both,
-                mode,
-            }))
-        }
-        4 => Some(Operation::AddPrefix(AddPrefix {
-            prefix: fields.first()?.clone(),
-        })),
-        5 => Some(Operation::AddSuffix(AddSuffix {
-            suffix: fields.first()?.clone(),
-        })),
-        6 => Some(Operation::RemovePattern(RemovePattern {
-            scope: Scope::Both,
-            pattern: fields.first()?.clone(),
-        })),
-        7 => {
-            let sep = fields.first()?.clone();
-            Some(Operation::Slugify(Slugify {
+            },
+        }),
+        T_ZERO_PAD => Operation::ZeroPad(ZeroPad {
+            width: number(app, 0, 2),
+            scope: Scope::from_label(&field(app, 1)),
+        }),
+        T_INSERT_DATE => Operation::InsertDate(InsertDate {
+            source: DateSource::from_label(&field(app, 0)),
+            format: field(app, 1),
+            position: match field(app, 2).as_str() {
+                "suffix" => NumberPosition::Suffix,
+                "replace" => NumberPosition::Replace,
+                _ => NumberPosition::Prefix,
+            },
+        }),
+        T_CHANGE_EXT => Operation::ChangeExtension(ChangeExtension {
+            extension: field(app, 0),
+        }),
+        T_SLUGIFY => {
+            let sep = field(app, 0);
+            Operation::Slugify(Slugify {
                 separator: if sep.is_empty() { "-".to_string() } else { sep },
-            }))
+            })
         }
-        _ => None,
-    }
+        T_STRIP_DIACRITICS => Operation::StripDiacritics(StripDiacritics {
+            scope: Scope::from_label(&field(app, 0)),
+        }),
+        _ => return None,
+    };
+    Some(op)
 }
 
 /// Set up popup_fields, popup_field_options, and popup_field_selections
-/// for the current popup_type_cursor. Used when adding a new operation.
+/// for the current popup_type_cursor from the OP_TYPES registry.
 fn setup_fields_for_type(app: &mut App) {
-    match app.popup_type_cursor {
-        0 => {
-            // Find & Replace
-            app.popup_fields = vec![String::new(); 2];
-            app.popup_field_options = vec![None, None];
-            app.popup_field_selections = vec![0, 0];
-        }
-        1 => {
-            // Regex Replace
-            app.popup_fields = vec![String::new(); 2];
-            app.popup_field_options = vec![None, None];
-            app.popup_field_selections = vec![0, 0];
-        }
-        2 => {
-            // Sequential Number
-            app.popup_fields = vec![String::new(), String::new(), String::new()];
-            app.popup_field_options = vec![
-                None,
-                None,
-                Some(vec!["prefix".into(), "suffix".into(), "replace".into()]),
-            ];
-            app.popup_field_selections = vec![0, 0, 0];
-        }
-        3 => {
-            // Case Change
-            app.popup_fields = vec![String::new()];
-            app.popup_field_options =
-                vec![Some(vec!["lower".into(), "upper".into(), "title".into()])];
-            app.popup_field_selections = vec![0];
-        }
-        4 => {
-            // Add Prefix
-            app.popup_fields = vec![String::new()];
-            app.popup_field_options = vec![None];
-            app.popup_field_selections = vec![0];
-        }
-        5 => {
-            // Add Suffix
-            app.popup_fields = vec![String::new()];
-            app.popup_field_options = vec![None];
-            app.popup_field_selections = vec![0];
-        }
-        6 => {
-            // Remove Pattern
-            app.popup_fields = vec![String::new()];
-            app.popup_field_options = vec![None];
-            app.popup_field_selections = vec![0];
-        }
-        7 => {
-            // Slugify
-            app.popup_fields = vec![String::new()];
-            app.popup_field_options = vec![Some(vec!["-".into(), "_".into(), ".".into()])];
-            app.popup_field_selections = vec![0];
-        }
-        _ => {
-            app.popup_fields = Vec::new();
-            app.popup_field_options = Vec::new();
-            app.popup_field_selections = Vec::new();
-        }
-    }
-    app.popup_text_cursors = vec![0; app.popup_fields.len()];
-}
-
-fn start_editing_operation(app: &mut App) {
-    let op = app.operations[app.op_cursor].clone();
-    let type_idx = match &op {
-        Operation::FindReplace(_) => 0,
-        Operation::RegexReplace(_) => 1,
-        Operation::SequentialNumber(_) => 2,
-        Operation::CaseChange(_) => 3,
-        Operation::AddPrefix(_) => 4,
-        Operation::AddSuffix(_) => 5,
-        Operation::RemovePattern(_) => 6,
-        Operation::Slugify(_) => 7,
-        Operation::StripDiacritics(_) => 8,
-        Operation::ChangeExtension(_) => 9,
-        Operation::Trim(_) => 10,
-        Operation::Insert(_) => 11,
-        Operation::ZeroPad(_) => 12,
-        Operation::Truncate(_) => 13,
-        Operation::InsertDate(_) => 14,
+    let Some(spec) = OP_TYPES.get(app.popup_type_cursor) else {
+        app.popup_fields = Vec::new();
+        app.popup_field_options = Vec::new();
+        app.popup_field_selections = Vec::new();
+        app.popup_text_cursors = Vec::new();
+        return;
     };
-    app.popup_type_cursor = type_idx;
-    setup_fields_for_type(app);
-
-    // Pre-fill values from the existing operation
-    match &op {
-        Operation::FindReplace(o) => {
-            app.popup_fields[0] = o.search.clone();
-            app.popup_fields[1] = o.replacement.clone();
-        }
-        Operation::RegexReplace(o) => {
-            app.popup_fields[0] = o.pattern.clone();
-            app.popup_fields[1] = o.replacement.clone();
-        }
-        Operation::SequentialNumber(o) => {
-            app.popup_fields[0] = o.format_width.to_string();
-            app.popup_fields[1] = o.start.to_string();
-            app.popup_field_selections[2] = match o.position {
-                NumberPosition::Prefix => 0,
-                NumberPosition::Suffix => 1,
-                NumberPosition::Replace => 2,
-            };
-        }
-        Operation::CaseChange(o) => {
-            app.popup_field_selections[0] = match o.mode {
-                CaseMode::Lower => 0,
-                CaseMode::Upper => 1,
-                CaseMode::Title => 2,
-                CaseMode::Sentence => 3,
-                CaseMode::Snake => 4,
-                CaseMode::Kebab => 5,
-                CaseMode::Camel => 6,
-            };
-        }
-        Operation::AddPrefix(o) => {
-            app.popup_fields[0] = o.prefix.clone();
-        }
-        Operation::AddSuffix(o) => {
-            app.popup_fields[0] = o.suffix.clone();
-        }
-        Operation::RemovePattern(o) => {
-            app.popup_fields[0] = o.pattern.clone();
-        }
-        Operation::Slugify(o) => {
-            app.popup_field_selections[0] = match o.separator.as_str() {
-                "_" => 1,
-                "." => 2,
-                _ => 0,
-            };
-        }
-        Operation::StripDiacritics(_)
-        | Operation::ChangeExtension(_)
-        | Operation::Trim(_)
-        | Operation::Insert(_)
-        | Operation::ZeroPad(_)
-        | Operation::Truncate(_)
-        | Operation::InsertDate(_) => {}
-    }
-
-    // Set text cursors to end of each pre-filled value
+    app.popup_fields = spec
+        .fields
+        .iter()
+        .map(|f| {
+            if f.options.is_some() {
+                String::new()
+            } else {
+                f.default.to_string()
+            }
+        })
+        .collect();
+    app.popup_field_options = spec
+        .fields
+        .iter()
+        .map(|f| {
+            f.options
+                .map(|opts| opts.iter().map(|o| o.to_string()).collect())
+        })
+        .collect();
+    app.popup_field_selections = spec
+        .fields
+        .iter()
+        .map(|f| {
+            f.options
+                .and_then(|opts| opts.iter().position(|o| *o == f.default))
+                .unwrap_or(0)
+        })
+        .collect();
     app.popup_text_cursors = app
         .popup_fields
         .iter()
         .map(|f| crate::app::char_len(f))
         .collect();
+}
+
+fn set_text(app: &mut App, i: usize, value: String) {
+    app.popup_text_cursors[i] = crate::app::char_len(&value);
+    app.popup_fields[i] = value;
+}
+
+fn set_choice(app: &mut App, i: usize, label: &str) {
+    if let Some(Some(options)) = app.popup_field_options.get(i) {
+        if let Some(pos) = options.iter().position(|o| o == label) {
+            app.popup_field_selections[i] = pos;
+        }
+    }
+}
+
+fn position_label(position: &NumberPosition) -> &'static str {
+    match position {
+        NumberPosition::Prefix => "prefix",
+        NumberPosition::Suffix => "suffix",
+        NumberPosition::Replace => "replace",
+    }
+}
+
+/// Open the parameter editor pre-filled with the operation under the cursor.
+pub fn start_editing_operation(app: &mut App) {
+    let op = app.operations[app.op_cursor].clone();
+    app.popup_type_cursor = op.type_index();
+    setup_fields_for_type(app);
+
+    match &op {
+        Operation::FindReplace(o) => {
+            set_text(app, 0, o.search.clone());
+            set_text(app, 1, o.replacement.clone());
+            set_choice(app, 2, o.scope.label());
+        }
+        Operation::RegexReplace(o) => {
+            set_text(app, 0, o.pattern.clone());
+            set_text(app, 1, o.replacement.clone());
+            set_choice(app, 2, o.scope.label());
+        }
+        Operation::RemovePattern(o) => {
+            set_text(app, 0, o.pattern.clone());
+            set_choice(app, 1, o.scope.label());
+        }
+        Operation::CaseChange(o) => {
+            set_choice(app, 0, o.mode.label());
+            set_choice(app, 1, o.scope.label());
+        }
+        Operation::AddPrefix(o) => set_text(app, 0, o.prefix.clone()),
+        Operation::AddSuffix(o) => set_text(app, 0, o.suffix.clone()),
+        Operation::Insert(o) => {
+            set_text(app, 0, o.text.clone());
+            set_text(app, 1, o.position.to_string());
+            set_choice(app, 2, o.from.label());
+            set_choice(app, 3, o.scope.label());
+        }
+        Operation::Trim(o) => {
+            set_text(app, 0, o.count.to_string());
+            set_choice(app, 1, o.from.label());
+            set_choice(app, 2, o.scope.label());
+        }
+        Operation::Truncate(o) => {
+            set_text(app, 0, o.max_len.to_string());
+            set_choice(app, 1, o.scope.label());
+        }
+        Operation::SequentialNumber(o) => {
+            set_text(app, 0, o.format_width.to_string());
+            set_text(app, 1, o.start.to_string());
+            set_choice(app, 2, position_label(&o.position));
+        }
+        Operation::ZeroPad(o) => {
+            set_text(app, 0, o.width.to_string());
+            set_choice(app, 1, o.scope.label());
+        }
+        Operation::InsertDate(o) => {
+            set_choice(app, 0, o.source.label());
+            set_text(app, 1, o.format.clone());
+            set_choice(app, 2, position_label(&o.position));
+        }
+        Operation::ChangeExtension(o) => set_text(app, 0, o.extension.clone()),
+        Operation::Slugify(o) => set_choice(app, 0, &o.separator),
+        Operation::StripDiacritics(o) => set_choice(app, 0, o.scope.label()),
+    }
+
     app.popup_field_cursor = 0;
     app.editing_op_index = Some(app.op_cursor);
     app.input_mode = InputMode::EditingOperationParams;

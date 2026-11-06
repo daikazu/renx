@@ -88,7 +88,7 @@ fn insert_date_uses_file_modified_time() {
         position: NumberPosition::Prefix,
     })]);
     assert_eq!(
-        prefix.apply_entries(&[entry.clone()]),
+        prefix.apply_entries(std::slice::from_ref(&entry)),
         vec!["2024-03-15_photo.jpg"]
     );
 
@@ -98,7 +98,7 @@ fn insert_date_uses_file_modified_time() {
         position: NumberPosition::Suffix,
     })]);
     assert_eq!(
-        suffix.apply_entries(&[entry.clone()]),
+        suffix.apply_entries(std::slice::from_ref(&entry)),
         vec!["photo_20240315.jpg"]
     );
 

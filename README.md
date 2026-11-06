@@ -9,12 +9,21 @@ A terminal UI tool for bulk file renaming. Select files, stack operations, previ
 - **Three-panel TUI** -- file list, operation stack, and live preview side by side
 - **Stackable operations** -- chain multiple rename transforms in order:
   - Find & Replace
-  - Regex Replace
-  - Sequential Numbering (prefix, suffix, or replace)
-  - Case Change (lower, UPPER, Title)
-  - Add Prefix / Suffix
+  - Regex Replace (patterns are validated as you add them)
   - Remove Pattern
-  - Slugify
+  - Case Change (lower, UPPER, Title, Sentence, snake_case, kebab-case, camelCase)
+  - Add Prefix / Suffix
+  - Insert Text at a position from the start or end
+  - Trim Characters from the start or end
+  - Truncate to a maximum length
+  - Sequential Numbering (prefix, suffix, or replace)
+  - Zero-pad Numbers (`track 3` becomes `track 03`)
+  - Insert Date from the file's modified or created time, with a strftime format
+  - Change Extension (replace, add, or remove)
+  - Slugify (lowercase, accents transliterated, separators collapsed)
+  - Strip Accents (`café` becomes `cafe`)
+- **Scope** -- text operations can target the whole filename, just the name, or just the extension
+- **Natural sorting** -- `file2` lists before `file10`, and ordering ignores case
 - **Live preview** with conflict detection before any files are touched
 - **Wildcard filtering** (`*`, `?`) to narrow down the file list
 - **Glob and directory input** -- pass a directory, glob pattern, or let the shell expand it
@@ -87,6 +96,8 @@ renx -r ~/projects
 - [clap](https://github.com/clap-rs/clap) -- CLI argument parsing
 - [regex](https://github.com/rust-lang/regex) -- regex operations
 - [glob](https://github.com/rust-lang/glob) -- file pattern matching
+- [chrono](https://github.com/chronotope/chrono) -- date formatting for Insert Date
+- [unicode-normalization](https://github.com/unicode-rs/unicode-normalization) -- accent stripping
 
 ## License
 
