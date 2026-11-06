@@ -1,4 +1,4 @@
-use crate::files::FileEntry;
+use crate::files::{self, FileEntry};
 use crate::operations::Operation;
 use crate::pipeline::Pipeline;
 
@@ -276,12 +276,14 @@ impl App {
             // Check if new name collides with an existing file on disk that isn't being renamed
             let entry = &self.files[*idx_a];
             let target_path = entry.parent_dir.join(new_a);
-            if target_path.exists() && target_path != entry.full_path() {
+            // `same_file` compares by identity, so a case-only rename on a
+            // case-insensitive filesystem is not treated as a collision.
+            if target_path.exists() && !files::same_file(&target_path, &entry.full_path()) {
                 // Check it's not another file being renamed away in this preview set
                 let is_in_preview = self
                     .preview
                     .iter()
-                    .any(|(idx, _)| self.files[*idx].full_path() == target_path);
+                    .any(|(idx, _)| files::same_file(&self.files[*idx].full_path(), &target_path));
                 if !is_in_preview && !conflicts.contains(&i) {
                     conflicts.push(i);
                 }

@@ -58,6 +58,30 @@ pub fn discover_glob(pattern: &str) -> io::Result<Vec<FileEntry>> {
 }
 
 /// Rename a single file on disk.
+/// Whether two paths refer to the same file on disk.
+///
+/// Compares by file identity (device + inode) rather than by path string, so
+/// that on case-insensitive filesystems (e.g. macOS APFS) `Photo.JPG` and
+/// `photo.jpg` are recognised as the same file. Returns `false` if either
+/// path does not exist.
+pub fn same_file(a: &Path, b: &Path) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        match (fs::metadata(a), fs::metadata(b)) {
+            (Ok(ma), Ok(mb)) => ma.dev() == mb.dev() && ma.ino() == mb.ino(),
+            _ => false,
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        match (fs::canonicalize(a), fs::canonicalize(b)) {
+            (Ok(ca), Ok(cb)) => ca == cb,
+            _ => false,
+        }
+    }
+}
+
 pub fn rename_file(entry: &FileEntry, new_name: &str) -> io::Result<()> {
     let old_path = entry.full_path();
     let new_path = entry.parent_dir.join(new_name);

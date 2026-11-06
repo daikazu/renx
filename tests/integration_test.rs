@@ -271,3 +271,61 @@ fn same_new_name_different_directories_is_not_conflict() {
 
     assert!(!app.has_errors());
 }
+
+#[test]
+fn case_only_rename_is_not_conflict() {
+    // On case-insensitive filesystems (macOS APFS default), "Photo.JPG" and
+    // "photo.jpg" resolve to the same file. Renaming a file to a different
+    // casing of its own name must not be reported as an on-disk conflict.
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("Photo.JPG"), "content").unwrap();
+
+    let file_list = files::discover_dir(dir.path()).unwrap();
+    let mut app = App::new(file_list);
+    app.selected[0] = true;
+
+    app.operations.push(Operation::CaseChange(CaseChange {
+        mode: CaseMode::Lower,
+    }));
+    app.update_preview();
+
+    assert_eq!(app.preview[0].1, "photo.jpg");
+    assert!(
+        !app.has_errors(),
+        "case-only rename should not be a conflict"
+    );
+}
+
+#[test]
+fn case_only_rename_executes() {
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use renx::input::handle_key;
+
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("Photo.JPG"), "content").unwrap();
+
+    let file_list = files::discover_dir(dir.path()).unwrap();
+    let mut app = App::new(file_list);
+    app.selected[0] = true;
+    app.operations.push(Operation::CaseChange(CaseChange {
+        mode: CaseMode::Lower,
+    }));
+    app.update_preview();
+
+    handle_key(
+        &mut app,
+        KeyEvent::new(KeyCode::Char('X'), KeyModifiers::SHIFT),
+    );
+
+    assert!(app.executed, "status: {}", app.status_message);
+    let names: Vec<String> = fs::read_dir(dir.path())
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(names, vec!["photo.jpg".to_string()]);
+    assert!(
+        app.status_message.contains("Renamed 1"),
+        "status: {}",
+        app.status_message
+    );
+}
